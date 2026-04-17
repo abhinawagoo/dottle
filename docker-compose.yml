@@ -1,0 +1,75 @@
+services:
+  db:
+    image: timescale/timescaledb:latest-pg15
+    container_name: agentloop_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agentloop
+      POSTGRES_USER: agentloop
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentloop_secret}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentloop -d agentloop"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: agentloop_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: agentloop_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://agentloop:${POSTGRES_PASSWORD:-agentloop_secret}@db:5432/agentloop
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    image: node:20-alpine
+    container_name: agentloop_frontend
+    restart: unless-stopped
+    working_dir: /app
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+      NEXT_PUBLIC_DEFAULT_PROJECT_ID: 21e05e35-6b14-421f-a2d4-4fb817543718
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+    command: sh -c "npm install --legacy-peer-deps && npm run dev"
+
+volumes:
+  pgdata:
+  redisdata:

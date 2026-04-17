@@ -1,0 +1,30 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "agentloop"
+version = "0.1.0"
+description = "Agentloop SDK — Instrument your AI agents in 3 lines of code"
+authors = ["Agentloop Team"]
+readme = "README.md"
+license = "MIT"
+homepage = "https://agentloop.io"
+repository = "https://github.com/agentloop/agentloop-python"
+keywords = ["ai", "agents", "observability", "monitoring", "llm", "tracing"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries",
+    "Programming Language :: Python :: 3.11",
+]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+httpx = "^0.27.0"
+pydantic = "^2.7.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+pytest-asyncio = "^0.23.0"
+respx = "^0.21.0"

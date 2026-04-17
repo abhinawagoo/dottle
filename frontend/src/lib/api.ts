@@ -1,0 +1,166 @@
+import axios from "axios";
+import type {
+  Project, Session, SessionDetail, SessionListResponse,
+  MetricsSummary, CostOverTimeResponse, ToolFailureRatesResponse,
+  AlertRule, AlertEvent,
+} from "./types";
+import type { Org } from "./org-context";
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+
+export const api = axios.create({ baseURL: BASE_URL });
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+export const authApi = {
+  register: (name: string, email: string, password: string) =>
+    api.post("/auth/register", { name, email, password }).then(r => r.data),
+  login: (email: string, password: string) =>
+    api.post("/auth/login", { email, password }).then(r => r.data),
+  me: () => api.get("/auth/me").then(r => r.data),
+  googleUrl: () => `${BASE_URL}/auth/google`,
+};
+
+// ── Orgs ──────────────────────────────────────────────────────────────────────
+export const orgsApi = {
+  list: (): Promise<Org[]> => api.get("/orgs").then(r => r.data),
+  create: (name: string): Promise<Org> => api.post("/orgs", { name }).then(r => r.data),
+  update: (id: string, name: string): Promise<Org> => api.patch(`/orgs/${id}`, { name }).then(r => r.data),
+  delete: (id: string): Promise<void> => api.delete(`/orgs/${id}`).then(r => r.data),
+  listMembers: (id: string) => api.get(`/orgs/${id}/members`).then(r => r.data),
+  inviteMember: (id: string, email: string, role: string) =>
+    api.post(`/orgs/${id}/members`, { email, role }).then(r => r.data),
+  removeMember: (orgId: string, memberId: string) =>
+    api.delete(`/orgs/${orgId}/members/${memberId}`).then(r => r.data),
+};
+
+// ── Projects ─────────────────────────────────────────────────────────────────
+export const projectsApi = {
+  list: (orgId: string): Promise<Project[]> =>
+    api.get("/projects", { params: { org_id: orgId } }).then(r => r.data),
+  create: (orgId: string, name: string, description?: string): Promise<Project> =>
+    api.post("/projects", { org_id: orgId, name, description }).then(r => r.data),
+  delete: (id: string): Promise<void> => api.delete(`/projects/${id}`).then(r => r.data),
+  regenerateKey: (id: string): Promise<Project> =>
+    api.post(`/projects/${id}/regenerate-key`).then(r => r.data),
+};
+
+// ── Sessions ─────────────────────────────────────────────────────────────────
+export const sessionsApi = {
+  list: (params: {
+    project_id: string;
+    status?: string;
+    agent_name?: string;
+    search?: string;
+    loop_detected?: boolean;
+    user_id?: string;
+    user_email?: string;
+    agent_version?: string;
+    tag?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    page_size?: number;
+  }): Promise<SessionListResponse> => api.get("/sessions", { params }).then(r => r.data),
+
+  get: (sessionId: string): Promise<SessionDetail> =>
+    api.get(`/sessions/${sessionId}`).then(r => r.data),
+};
+
+// ── Metrics ──────────────────────────────────────────────────────────────────
+export const metricsApi = {
+  summary: (projectId: string, from?: string, to?: string): Promise<MetricsSummary> =>
+    api.get("/metrics/summary", { params: { project_id: projectId, from, to } }).then(r => r.data),
+
+  costOverTime: (projectId: string, granularity = "day", from?: string, to?: string): Promise<CostOverTimeResponse> =>
+    api.get("/metrics/cost-over-time", { params: { project_id: projectId, granularity, from, to } }).then(r => r.data),
+
+  toolFailureRates: (projectId: string, from?: string, to?: string): Promise<ToolFailureRatesResponse> =>
+    api.get("/metrics/tool-failure-rates", { params: { project_id: projectId, from, to } }).then(r => r.data),
+
+  latency: (projectId: string, from?: string, to?: string) =>
+    api.get("/metrics/latency", { params: { project_id: projectId, from, to } }).then(r => r.data),
+
+  regression: (params: {
+    project_id: string;
+    agent_name?: string;
+    version_a?: string;
+    version_b?: string;
+    from_a?: string;
+    to_a?: string;
+    from_b?: string;
+    to_b?: string;
+  }) => api.get("/metrics/regression", { params }).then(r => r.data),
+};
+
+// ── Issues Board ──────────────────────────────────────────────────────────────
+export const issuesApi = {
+  list: (params: {
+    project_id: string;
+    severity?: string;
+    issue_type?: string;
+    agent_name?: string;
+    from?: string;
+    to?: string;
+  }): Promise<import("./types").IssuesBoardResponse> =>
+    api.get("/issues", { params }).then(r => r.data),
+
+  sessions: (issueType: string, params: { project_id: string; page?: number; page_size?: number }) =>
+    api.get(`/issues/${issueType}/sessions`, { params }).then(r => r.data),
+};
+
+// ── AI Session Chat ───────────────────────────────────────────────────────────
+// Returns a raw Response so the caller can consume the SSE stream directly
+export const sessionChatStream = (
+  sessionId: string,
+  message: string,
+  history: { role: string; content: string }[]
+): Promise<Response> =>
+  fetch(`${BASE_URL}/sessions/${sessionId}/ai-chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, history }),
+  });
+
+// ── Code Fixes ───────────────────────────────────────────────────────────────
+export const codeFixApi = {
+  getGitHubConfig: (projectId: string) =>
+    api.get(`/projects/${projectId}/github`).then(r => r.data),
+
+  saveGitHubConfig: (projectId: string, data: {
+    repo_url: string; access_token: string; default_branch?: string;
+  }) => api.put(`/projects/${projectId}/github`, data).then(r => r.data),
+
+  deleteGitHubConfig: (projectId: string) =>
+    api.delete(`/projects/${projectId}/github`).then(r => r.data),
+
+  createFixJob: (issueType: string, data: {
+    project_id: string; issue_context: Record<string, unknown>;
+  }) => api.post(`/issues/${issueType}/fix`, data).then(r => r.data),
+
+  getJob: (jobId: string) =>
+    api.get(`/fix/jobs/${jobId}`).then(r => r.data),
+
+  listJobs: (projectId: string) =>
+    api.get(`/projects/${projectId}/fix/jobs`).then(r => r.data),
+
+  createPR: (jobId: string, data?: { title?: string; body?: string }) =>
+    api.post(`/fix/jobs/${jobId}/create-pr`, data ?? {}).then(r => r.data),
+};
+
+// ── Alerts ───────────────────────────────────────────────────────────────────
+export const alertsApi = {
+  listRules: (projectId: string): Promise<AlertRule[]> =>
+    api.get("/alerts/rules", { params: { project_id: projectId } }).then(r => r.data),
+
+  createRule: (data: Omit<AlertRule, "id" | "created_at" | "last_fired_at">): Promise<AlertRule> =>
+    api.post("/alerts/rules", data).then(r => r.data),
+
+  updateRule: (id: string, data: Partial<AlertRule>): Promise<AlertRule> =>
+    api.patch(`/alerts/rules/${id}`, data).then(r => r.data),
+
+  deleteRule: (id: string): Promise<void> =>
+    api.delete(`/alerts/rules/${id}`).then(r => r.data),
+
+  listEvents: (projectId: string): Promise<AlertEvent[]> =>
+    api.get("/alerts/events", { params: { project_id: projectId } }).then(r => r.data),
+};

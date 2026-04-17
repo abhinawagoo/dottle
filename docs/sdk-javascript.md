@@ -1,0 +1,307 @@
+# JavaScript / TypeScript SDK
+
+Works in **Node.js**, **Next.js**, **Express**, **Remix**, or any JS runtime with `fetch` (Node 18+).
+
+> The Python SDK and JavaScript SDK send data to the **same backend and dashboard** —
+> you see all your agents together regardless of which language they're written in.
+
+---
+
+## Install
+
+```bash
+# From the agentloop repo
+npm install ../sdk-js        # local
+
+# Once published to npm:
+npm install agentloop
+```
+
+---
+
+## Setup — configure once at startup
+
+```ts
+import agentloop from "agentloop";
+
+agentloop.configure({
+  apiKey:  "alp_live_xxxxxxxx",              // from Settings → your project
+  apiUrl:  "http://localhost:8000/api/v1",   // your Agentloop backend URL
+  debug:   false,                            // true → logs every flush
+});
+```
+
+In **Next.js** put this in a file that runs once (e.g. `lib/agentloop.ts`) and import it in your API route / server action.
+
+---
+
+## Usage
+
+### Pattern 1 — `session` + `span` callbacks (recommended)
+
+Mirrors the Python context-manager style. Wrap your agent entry point in `session()`, and each operation in `span()`.
+
+```ts
+import agentloop from "agentloop";
+
+const answer = await agentloop.session("research-agent", async () => {
+
+  // Track an LLM call
+  const plan = await agentloop.span("llm", "gpt-4o plan step", async (s) => {
+    const res = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: "Plan a research task" }],
+    });
+    s.recordTokens(
+      res.usage.prompt_tokens,
+      res.usage.completion_tokens,
+      "gpt-4o"
+    );
+    return res.choices[0].message.content;
+  });
+
+  // Track a tool call
+  const results = await agentloop.span("tool", "search_web", async (s) => {
+    const data = await searchWeb(plan);
+    s.setAttribute("result_count", data.length);
+    return data;
+  });
+
+  // Track a retrieval (RAG, vector DB)
+  const docs = await agentloop.span("retrieval", "pinecone_query", async () => {
+    return vectordb.query(embedding);
+  });
+
+  return synthesize(results, docs);
+});
+```
+
+### Pattern 2 — `wrapLlm` / `wrapTool` helpers (zero boilerplate)
+
+Wrap your existing functions once — they track automatically on every call.
+
+```ts
+import agentloop from "agentloop";
+
+// Define your tracked functions
+const callGPT = agentloop.wrapLlm("gpt-4o", async (prompt: string) => {
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [{ role: "user", content: prompt }],
+  });
+  return {
+    content:      res.choices[0].message.content,
+    inputTokens:  res.usage.prompt_tokens,      // required
+    outputTokens: res.usage.completion_tokens,  // required
+  };
+});
+
+const searchWeb = agentloop.wrapTool("search_web", async (query: string) => {
+  return fetch(`https://api.search.com?q=${query}`).then(r => r.json());
+});
+
+// Use them normally — tracking is automatic
+await agentloop.session("my-agent", async () => {
+  const plan   = await callGPT("Plan a research task");
+  const data   = await searchWeb(plan.content);
+  const answer = await callGPT(`Synthesize: ${JSON.stringify(data)}`);
+  return answer.content;
+});
+```
+
+### Pattern 3 — Nested spans (sub-agents)
+
+Spans can be nested — they automatically build a parent–child tree in the trace timeline.
+
+```ts
+await agentloop.session("orchestrator", async () => {
+
+  await agentloop.span("agent", "research-sub-agent", async () => {
+    // nested spans become children of "research-sub-agent"
+    await agentloop.span("llm",  "search query generation", async (s) => { ... });
+    await agentloop.span("tool", "web_search",              async (s) => { ... });
+  });
+
+  await agentloop.span("agent", "writer-sub-agent", async () => {
+    await agentloop.span("llm", "draft generation", async (s) => { ... });
+  });
+
+});
+```
+
+---
+
+## Next.js — API route example
+
+```ts
+// app/api/chat/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import agentloop from "agentloop";
+import OpenAI from "openai";
+
+// Configure once (module-level, runs on first import)
+agentloop.configure({
+  apiKey:  process.env.AGENTLOOP_API_KEY!,
+  apiUrl:  process.env.AGENTLOOP_API_URL ?? "http://localhost:8000/api/v1",
+});
+
+const openai = new OpenAI();
+
+export async function POST(req: NextRequest) {
+  const { message } = await req.json();
+
+  const answer = await agentloop.session("chat-agent", async () => {
+    return agentloop.span("llm", "gpt-4o response", async (s) => {
+      const res = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: message }],
+      });
+      s.recordTokens(
+        res.usage!.prompt_tokens,
+        res.usage!.completion_tokens,
+        "gpt-4o"
+      );
+      return res.choices[0].message.content;
+    });
+  });
+
+  return NextResponse.json({ answer });
+}
+```
+
+Add to `.env.local`:
+```
+AGENTLOOP_API_KEY=alp_live_xxxxxxxx
+AGENTLOOP_API_URL=http://localhost:8000/api/v1
+```
+
+---
+
+## Express — middleware example
+
+```ts
+// src/agentloop.ts — configure once
+import agentloop from "agentloop";
+agentloop.configure({
+  apiKey:  process.env.AGENTLOOP_API_KEY!,
+  apiUrl:  process.env.AGENTLOOP_API_URL!,
+});
+export default agentloop;
+
+// src/routes/agent.ts
+import express from "express";
+import agentloop from "../agentloop";
+
+const router = express.Router();
+
+router.post("/run", async (req, res) => {
+  const { query } = req.body;
+
+  const result = await agentloop.session("express-agent", async () => {
+    return agentloop.span("llm", "claude call", async (s) => {
+      const response = await anthropic.messages.create({ ... });
+      s.recordTokens(response.usage.input_tokens, response.usage.output_tokens, "claude-3-5-sonnet");
+      return response.content[0].text;
+    });
+  });
+
+  res.json({ result });
+});
+```
+
+---
+
+## Recording errors
+
+Any uncaught exception inside `session()` or `span()` is **automatically** recorded as an error. To record errors manually:
+
+```ts
+await agentloop.span("tool", "send_email", async (s) => {
+  try {
+    await sendEmail(to, body);
+  } catch (err) {
+    s.setError((err as Error).message, (err as Error).constructor.name);
+    throw err;  // re-throw so the session also marks as failed
+  }
+});
+```
+
+---
+
+## SDK reference
+
+```ts
+agentloop.configure(config)
+
+// config shape:
+{
+  apiKey:          string   // required — from Settings page
+  apiUrl:          string   // required — your backend URL
+  debug?:          boolean  // default false — log flushes to console
+  disabled?:       boolean  // default false — set true to silence in tests
+  flushIntervalMs?: number  // default 2000ms
+  maxBatchSize?:   number   // default 100 spans per request
+  timeoutMs?:      number   // default 5000ms HTTP timeout
+}
+
+// Span types
+"llm"        → green  in trace timeline
+"tool"       → amber
+"retrieval"  → teal
+"agent"      → blue  (sub-agent calls)
+"custom"     → purple
+
+// SpanContext methods (inside span callback)
+s.recordTokens(inputTokens, outputTokens, model)
+s.setError(message, errorType?)
+s.setAttribute(key, value)
+
+// Graceful shutdown — call before process.exit() if needed
+await agentloop.shutdown()
+```
+
+---
+
+## Smoke test
+
+No real LLM needed — paste and run:
+
+```ts
+import agentloop from "agentloop";
+
+agentloop.configure({
+  apiKey:  "alp_live_xxxxxxxx",
+  apiUrl:  "http://localhost:8000/api/v1",
+  debug:   true,
+});
+
+await agentloop.session("js-smoke-test", async () => {
+
+  await agentloop.span("llm", "fake-gpt-call", async (s) => {
+    await new Promise(r => setTimeout(r, 100));
+    s.recordTokens(200, 80, "gpt-4o");
+  });
+
+  await agentloop.span("tool", "fake-search", async () => {
+    await new Promise(r => setTimeout(r, 50));
+  });
+
+});
+
+console.log("Done — check http://localhost:3000/sessions");
+await agentloop.shutdown();
+```
+
+---
+
+## Works locally, no deployment needed
+
+Your agent code and the Agentloop stack are both on the same machine:
+
+```
+Your machine
+├── Agentloop stack  (Docker → localhost:8000)
+└── Your Node.js app (calls localhost:8000)  ✓
+```
+
+When you're ready to go live, change `apiUrl` to your deployed backend URL — nothing else changes.
