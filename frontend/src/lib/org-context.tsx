@@ -25,7 +25,7 @@ const OrgContext = createContext<OrgContextValue>({
   isLoading: true,
 });
 
-const ORG_KEY = "agentloop_org_id";
+const ORG_KEY = "dottle_org_id";
 
 export function OrgProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();

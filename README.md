@@ -1,4 +1,4 @@
-# Agentloop
+# Dottle
 
 > AI Agent Observability Platform — Like Sentry, but for AI agents.
 
@@ -8,7 +8,7 @@ Catch agent drift before your users do. Detect silent regressions across every s
 
 ## What It Does
 
-Agentloop instruments your AI agents and gives you:
+Dottle instruments your AI agents and gives you:
 
 - **Session Timeline** — visualize every LLM call, tool call, and retrieval in a Jaeger-style waterfall
 - **Loop Detection** — automatically detect when agents get stuck repeating the same actions
@@ -56,7 +56,7 @@ poetry run alembic upgrade head
 ### 3. Install the SDK
 
 ```bash
-pip install agentloop
+pip install dottle
 # or from local source:
 pip install -e ./sdk
 ```
@@ -64,16 +64,16 @@ pip install -e ./sdk
 ### 4. Instrument your agent
 
 ```python
-import agentloop
+import dottle
 
-agentloop.configure(
-    api_key="alp_live_...",   # from the Settings page
+dottle.configure(
+    api_key="dtl_live_...",   # from the Settings page
     api_url="http://localhost:8000/api/v1"
 )
 
-with agentloop.session("research_agent") as session_id:
+with dottle.session("research_agent") as session_id:
 
-    with agentloop.span("llm", "plan step") as s:
+    with dottle.span("llm", "plan step") as s:
         response = openai.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": "Plan a research task"}]
@@ -84,7 +84,7 @@ with agentloop.session("research_agent") as session_id:
             model="gpt-4o"
         )
 
-    with agentloop.span("tool", "search_web") as s:
+    with dottle.span("tool", "search_web") as s:
         results = search_the_web(query)
 ```
 
@@ -101,7 +101,7 @@ http://localhost:3000
 ```
 ┌─────────────────┐    HTTP (batched)    ┌──────────────────┐
 │   Your Agent    │ ──────────────────▶  │  FastAPI Backend  │
-│  + agentloop SDK│                      │   (port 8000)     │
+│  + dottle SDK│                      │   (port 8000)     │
 └─────────────────┘                      └────────┬─────────┘
                                                   │
                                          ┌────────▼─────────┐
@@ -126,10 +126,10 @@ http://localhost:3000
 
 ## SDK Reference
 
-### `agentloop.configure()`
+### `dottle.configure()`
 ```python
-agentloop.configure(
-    api_key="alp_live_...",
+dottle.configure(
+    api_key="dtl_live_...",
     api_url="http://localhost:8000/api/v1",
     flush_interval_ms=2000,   # how often spans are flushed (default: 2s)
     disabled=False,           # set True in tests
@@ -137,9 +137,9 @@ agentloop.configure(
 )
 ```
 
-### `agentloop.session()` — context manager
+### `dottle.session()` — context manager
 ```python
-with agentloop.session(
+with dottle.session(
     agent_name="my_agent",
     external_id="job-123",        # optional: your own ID for correlation
     metadata={"user_id": "u1"},
@@ -147,36 +147,36 @@ with agentloop.session(
     ...
 ```
 
-### `agentloop.span()` — context manager
+### `dottle.span()` — context manager
 ```python
-with agentloop.span("llm", "gpt-4o call") as s:
+with dottle.span("llm", "gpt-4o call") as s:
     s.record_tokens(input=512, output=128, model="gpt-4o")
     s.set_attribute("temperature", 0.7)
 
-with agentloop.span("tool", "search_web", input_args={"query": q}) as s:
+with dottle.span("tool", "search_web", input_args={"query": q}) as s:
     # input_args are hashed for loop detection
     pass
 ```
 
 Span types: `llm` | `tool` | `retrieval` | `agent` | `custom`
 
-### `@agentloop.task()` — decorator
+### `@dottle.task()` — decorator
 ```python
-@agentloop.task("research_agent", metadata={"env": "prod"})
+@dottle.task("research_agent", metadata={"env": "prod"})
 def run_agent(query: str) -> str:
     ...
 ```
 
-### `@agentloop.tool_call()` — decorator
+### `@dottle.tool_call()` — decorator
 ```python
-@agentloop.tool_call("search_web")
+@dottle.tool_call("search_web")
 def search(query: str) -> list:
     ...   # automatically records span + input hash
 ```
 
-### `@agentloop.llm_call()` — decorator
+### `@dottle.llm_call()` — decorator
 ```python
-@agentloop.llm_call(model="gpt-4o")
+@dottle.llm_call(model="gpt-4o")
 def call_llm(prompt: str) -> dict:
     resp = openai.chat.completions.create(...)
     return {
@@ -190,7 +190,7 @@ def call_llm(prompt: str) -> dict:
 
 ## Loop Detection
 
-Agentloop detects loops automatically — both client-side (in your agent process) and server-side (on ingest). A loop is detected when:
+Dottle detects loops automatically — both client-side (in your agent process) and server-side (on ingest). A loop is detected when:
 
 | Signal | Default Threshold |
 |--------|-------------------|

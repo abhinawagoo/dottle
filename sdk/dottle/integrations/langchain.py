@@ -1,21 +1,21 @@
 """
-LangChain integration for Agentloop.
+LangChain integration for Dottle.
 
 Zero-code-change tracking for any LangChain chain or agent.
 
 Usage:
     from langchain_openai import ChatOpenAI
     from langchain.agents import AgentExecutor
-    from agentloop.integrations.langchain import AgentloopCallbackHandler
-    import agentloop
+    from dottle.integrations.langchain import DottleCallbackHandler
+    import dottle
 
-    agentloop.configure(api_key="alp_live_...")
-    handler = AgentloopCallbackHandler()
+    dottle.configure(api_key="dtl_live_...")
+    handler = DottleCallbackHandler()
 
     llm = ChatOpenAI(model="gpt-4o", callbacks=[handler])
     agent = AgentExecutor(agent=..., tools=..., callbacks=[handler])
 
-    with agentloop.session("langchain-agent") as sid:
+    with dottle.session("langchain-agent") as sid:
         result = agent.invoke({"input": "What is the capital of France?"})
 
     # Every LLM call and tool invocation is automatically tracked.
@@ -33,11 +33,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Union
 
-from agentloop.context import _current_session_id, _span_stack, _loop_detector
-from agentloop.client import get_client
-from agentloop.models import SpanPayload
+from dottle.context import _current_session_id, _span_stack, _loop_detector
+from dottle.client import get_client
+from dottle.models import SpanPayload
 
-logger = logging.getLogger("agentloop.langchain")
+logger = logging.getLogger("dottle.langchain")
 
 try:
     from langchain_core.callbacks import BaseCallbackHandler
@@ -50,19 +50,19 @@ except ImportError:
     _LANGCHAIN_AVAILABLE = False
 
 
-class AgentloopCallbackHandler(BaseCallbackHandler):
+class DottleCallbackHandler(BaseCallbackHandler):
     """
     LangChain BaseCallbackHandler that records every LLM call and tool use
-    as an Agentloop span, nested inside the current agentloop.session() context.
+    as an Dottle span, nested inside the current dottle.session() context.
 
-    Must be used inside an active agentloop.session() block.
+    Must be used inside an active dottle.session() block.
     If there is no active session, all callbacks are no-ops (fail-safe).
     """
 
     def __init__(self) -> None:
         if not _LANGCHAIN_AVAILABLE:
             raise ImportError(
-                "langchain-core is required for AgentloopCallbackHandler. "
+                "langchain-core is required for DottleCallbackHandler. "
                 "Install it with: pip install langchain-core"
             )
         super().__init__()
@@ -340,7 +340,7 @@ class _OpenSpan:
         cost_usd: float | None = None
         if input_tokens and output_tokens and model:
             try:
-                from agentloop.services.cost import estimate_cost
+                from dottle.services.cost import estimate_cost
                 cost_usd = estimate_cost(model, input_tokens, output_tokens)
             except Exception:
                 pass
@@ -368,4 +368,4 @@ class _OpenSpan:
             client = get_client()
             client.add_span(payload)
         except Exception as exc:
-            logger.warning(f"Agentloop: failed to record LangChain span: {exc}")
+            logger.warning(f"Dottle: failed to record LangChain span: {exc}")

@@ -1,7 +1,7 @@
 """
 Scenario 4: wrap_openai + wrap_anthropic demo
 ----------------------------------------------
-Shows how developers use agentloop in 3 lines — wrap the client once,
+Shows how developers use dottle in 3 lines — wrap the client once,
 then every LLM call is auto-tracked inside session() blocks.
 
 Uses lightweight mock clients so no real API keys are needed.
@@ -13,13 +13,13 @@ What to look for in the dashboard:
 - Prompt and response text captured without s.record_prompt()
 - Tool spans still tracked manually (wrappers only cover the LLM client)
 """
-import agentloop
+import dottle
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
-agentloop.configure(
-    api_key="alp_live_Zyp15I6iw3i35nbtpf8RJCu04aKmBRT2RrDLi_zP6oA",
+dottle.configure(
+    api_key="dtl_live_Zyp15I6iw3i35nbtpf8RJCu04aKmBRT2RrDLi_zP6oA",
     api_url="http://localhost:8000/api/v1",
     debug=True,
 )
@@ -126,9 +126,9 @@ print("Test 1: wrap_openai — customer support agent")
 print("=" * 60)
 
 raw_openai = MockOpenAIClient()
-client = agentloop.wrap_openai(raw_openai)  # ONE LINE to instrument
+client = dottle.wrap_openai(raw_openai)  # ONE LINE to instrument
 
-with agentloop.session("customer-support-agent", metadata={"channel": "web", "user_id": "usr_8821"}) as sid:
+with dottle.session("customer-support-agent", metadata={"channel": "web", "user_id": "usr_8821"}) as sid:
     print(f"  Session: {sid}")
 
     # These LLM calls are tracked AUTOMATICALLY — no span() needed
@@ -141,7 +141,7 @@ with agentloop.session("customer-support-agent", metadata={"channel": "web", "us
     )
 
     # Tool call — still manual
-    with agentloop.span("tool", "lookup_order", input_args={"order_id": "48291"}) as s:
+    with dottle.span("tool", "lookup_order", input_args={"order_id": "48291"}) as s:
         time.sleep(0.05)
         s.set_attribute("order_status", "in_transit")
         s.set_attribute("estimated_delivery", "2026-04-18")
@@ -166,13 +166,13 @@ print("Test 2: wrap_anthropic — code review agent")
 print("=" * 60)
 
 raw_anthropic = MockAnthropicClient()
-client2 = agentloop.wrap_anthropic(raw_anthropic)  # ONE LINE to instrument
+client2 = dottle.wrap_anthropic(raw_anthropic)  # ONE LINE to instrument
 
-with agentloop.session("code-review-agent", metadata={"repo": "myapp/backend", "pr_number": 142}) as sid:
+with dottle.session("code-review-agent", metadata={"repo": "myapp/backend", "pr_number": 142}) as sid:
     print(f"  Session: {sid}")
 
     # Fetch PR diff — manual tool span
-    with agentloop.span("tool", "fetch_pr_diff", input_args={"pr": 142}) as s:
+    with dottle.span("tool", "fetch_pr_diff", input_args={"pr": 142}) as s:
         time.sleep(0.04)
         s.set_attribute("files_changed", 7)
         s.set_attribute("lines_added", 234)
@@ -187,7 +187,7 @@ with agentloop.session("code-review-agent", metadata={"repo": "myapp/backend", "
     )
 
     # Static analysis — manual
-    with agentloop.span("tool", "run_static_analysis", input_args={"tool": "semgrep"}) as s:
+    with dottle.span("tool", "run_static_analysis", input_args={"tool": "semgrep"}) as s:
         time.sleep(0.08)
         s.set_attribute("issues_found", 2)
         s.set_attribute("severity", "medium")
@@ -211,10 +211,10 @@ print("=" * 60)
 print("Test 3: Mixed models — routing agent (GPT-4o + Claude)")
 print("=" * 60)
 
-oai = agentloop.wrap_openai(MockOpenAIClient())
-ant = agentloop.wrap_anthropic(MockAnthropicClient())
+oai = dottle.wrap_openai(MockOpenAIClient())
+ant = dottle.wrap_anthropic(MockAnthropicClient())
 
-with agentloop.session("multi-model-router", metadata={"strategy": "cost_optimized"}) as sid:
+with dottle.session("multi-model-router", metadata={"strategy": "cost_optimized"}) as sid:
     print(f"  Session: {sid}")
 
     # Cheap model for classification

@@ -1,25 +1,25 @@
 services:
   db:
     image: timescale/timescaledb:latest-pg15
-    container_name: agentloop_db
+    container_name: dottle_db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: agentloop
-      POSTGRES_USER: agentloop
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentloop_secret}
+      POSTGRES_DB: dottle
+      POSTGRES_USER: dottle
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dottle_secret}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U agentloop -d agentloop"]
+      test: ["CMD-SHELL", "pg_isready -U dottle -d dottle"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: agentloop_redis
+    container_name: dottle_redis
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -35,7 +35,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: agentloop_backend
+    container_name: dottle_backend
     restart: unless-stopped
     depends_on:
       db:
@@ -45,7 +45,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://agentloop:${POSTGRES_PASSWORD:-agentloop_secret}@db:5432/agentloop
+      DATABASE_URL: postgresql+asyncpg://dottle:${POSTGRES_PASSWORD:-dottle_secret}@db:5432/dottle
       REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"
@@ -55,7 +55,7 @@ services:
 
   frontend:
     image: node:20-alpine
-    container_name: agentloop_frontend
+    container_name: dottle_frontend
     restart: unless-stopped
     working_dir: /app
     depends_on:

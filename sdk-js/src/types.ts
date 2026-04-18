@@ -1,5 +1,5 @@
-export interface AgentloopConfig {
-  /** API key from your Agentloop project settings */
+export interface DottleConfig {
+  /** API key from your Dottle project settings */
   apiKey: string;
   /** Backend URL e.g. http://localhost:8000/api/v1 */
   apiUrl: string;

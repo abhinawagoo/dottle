@@ -5,11 +5,11 @@ Zero code change required — just wrap the client once at startup.
 Usage:
     # OpenAI
     from openai import OpenAI
-    import agentloop
+    import dottle
 
-    client = agentloop.wrap_openai(OpenAI())
+    client = dottle.wrap_openai(OpenAI())
 
-    with agentloop.session("my-agent") as sid:
+    with dottle.session("my-agent") as sid:
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": "Hello"}]
@@ -18,11 +18,11 @@ Usage:
 
     # Anthropic
     from anthropic import Anthropic
-    import agentloop
+    import dottle
 
-    client = agentloop.wrap_anthropic(Anthropic())
+    client = dottle.wrap_anthropic(Anthropic())
 
-    with agentloop.session("my-agent") as sid:
+    with dottle.session("my-agent") as sid:
         response = client.messages.create(
             model="claude-opus-4-6",
             max_tokens=1024,
@@ -35,9 +35,9 @@ import functools
 import logging
 from typing import Any
 
-from agentloop.context import _current_session_id, span as al_span
+from dottle.context import _current_session_id, span as al_span
 
-logger = logging.getLogger("agentloop")
+logger = logging.getLogger("dottle")
 
 
 # ── OpenAI ─────────────────────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ def wrap_openai(client: Any) -> Any:
     Returns:
         The same client instance, patched in-place. Safe to call multiple times.
     """
-    if getattr(client, "_agentloop_wrapped", False):
+    if getattr(client, "_dottle_wrapped", False):
         return client
 
     original_create = client.chat.completions.create
@@ -113,7 +113,7 @@ def wrap_openai(client: Any) -> Any:
                 raise
 
     client.chat.completions.create = tracked_create
-    client._agentloop_wrapped = True
+    client._dottle_wrapped = True
     return client
 
 
@@ -157,7 +157,7 @@ def wrap_anthropic(client: Any) -> Any:
     Returns:
         The same client instance, patched in-place. Safe to call multiple times.
     """
-    if getattr(client, "_agentloop_wrapped", False):
+    if getattr(client, "_dottle_wrapped", False):
         return client
 
     original_create = client.messages.create
@@ -218,7 +218,7 @@ def wrap_anthropic(client: Any) -> Any:
                 raise
 
     client.messages.create = tracked_create
-    client._agentloop_wrapped = True
+    client._dottle_wrapped = True
     return client
 
 

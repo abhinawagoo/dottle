@@ -16,11 +16,11 @@ What to look for in the dashboard:
 - Token counts and cost appear
 - Prompt/response visible in span detail
 """
-import agentloop
+import dottle
 import time
 
-agentloop.configure(
-    api_key="alp_live_Zyp15I6iw3i35nbtpf8RJCu04aKmBRT2RrDLi_zP6oA",
+dottle.configure(
+    api_key="dtl_live_Zyp15I6iw3i35nbtpf8RJCu04aKmBRT2RrDLi_zP6oA",
     api_url="http://localhost:8000/api/v1",
     debug=True,
 )
@@ -29,14 +29,14 @@ TOPIC = "Impact of LLMs on software engineering productivity"
 
 print("Running: Multi-Tool Research Agent...")
 
-with agentloop.session(
+with dottle.session(
     "research-agent",
     metadata={"scenario": "success_test", "topic": TOPIC, "user_id": "user_demo_001"}
 ) as sid:
     print(f"  Session: {sid}")
 
     # ── Phase 1: Planning ────────────────────────────────────────────────────
-    with agentloop.span("llm", "gpt-4o: research plan") as s:
+    with dottle.span("llm", "gpt-4o: research plan") as s:
         time.sleep(0.4)
         s.record_tokens(320, 140, "gpt-4o")
         s.record_prompt(
@@ -61,7 +61,7 @@ with agentloop.session(
 
     search_results = []
     for tool_name, args in queries:
-        with agentloop.span("tool", tool_name, input_args=args) as s:
+        with dottle.span("tool", tool_name, input_args=args) as s:
             time.sleep(0.12)
             results = [f"result_{i}" for i in range(8)]
             s.set_attribute("results_count", len(results))
@@ -70,7 +70,7 @@ with agentloop.session(
         time.sleep(0.05)  # small gap between calls
 
     # ── Phase 3: Summarization (cheaper model for bulk work) ────────────────
-    with agentloop.span("llm", "gpt-4o-mini: extract key findings") as s:
+    with dottle.span("llm", "gpt-4o-mini: extract key findings") as s:
         time.sleep(0.6)
         s.record_tokens(1840, 520, "gpt-4o-mini")
         s.record_prompt(
@@ -93,13 +93,13 @@ with agentloop.session(
         s.set_attribute("input_docs", len(search_results))
 
     # ── Phase 4: Write the report ────────────────────────────────────────────
-    with agentloop.span("tool", "write_file", input_args={"path": "report_llm_productivity.md", "format": "markdown"}) as s:
+    with dottle.span("tool", "write_file", input_args={"path": "report_llm_productivity.md", "format": "markdown"}) as s:
         time.sleep(0.08)
         s.set_attribute("file_size_bytes", 4820)
         s.set_attribute("sections", 5)
 
     # ── Phase 5: Final review ────────────────────────────────────────────────
-    with agentloop.span("llm", "gpt-4o: quality review") as s:
+    with dottle.span("llm", "gpt-4o: quality review") as s:
         time.sleep(0.35)
         s.record_tokens(890, 210, "gpt-4o")
         s.record_prompt(

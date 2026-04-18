@@ -1,4 +1,4 @@
-# Agentloop — Product & Business Document
+# Dottle — Product & Business Document
 
 > Last updated: April 2026
 > Use this document for: marketing copy, sales decks, investor conversations, landing pages, cold outreach, pricing decisions.
@@ -7,7 +7,7 @@
 
 ## One-line pitch
 
-**Agentloop is Sentry for AI agents — instrument in 3 lines of code, see every LLM call, tool execution, cost, and failure in real time, and get AI-powered code fixes when things break.**
+**Dottle is Sentry for AI agents — instrument in 3 lines of code, see every LLM call, tool execution, cost, and failure in real time, and get AI-powered code fixes when things break.**
 
 ---
 
@@ -23,13 +23,13 @@ AI agents are being deployed into production at scale. But unlike normal softwar
 
 **Real example:** A team running voice AI for pest control and property management is handling hundreds of customer calls per day with zero visibility. They're literally listening to random call recordings hoping to catch problems. A frustrated customer hangs up before help arrives. There was no way to know the AI was struggling until it was too late.
 
-**This is the exact problem Sentry solved for normal software in 2010. Agentloop solves it for AI agents in 2026.**
+**This is the exact problem Sentry solved for normal software in 2010. Dottle solves it for AI agents in 2026.**
 
 ---
 
 ## What we built
 
-Agentloop is an AI agent observability and debugging platform with four layers:
+Dottle is an AI agent observability and debugging platform with four layers:
 
 **1. Observe** — Real-time tracing of every LLM call, tool execution, retrieval, and custom span  
 **2. Detect** — Automatic detection of 10+ behavioral issues (loops, failures, high cost, tool storms, etc.)  
@@ -58,22 +58,22 @@ Agentloop is an AI agent observability and debugging platform with four layers:
 - [x] **AI Session Diagnosis** — streaming Claude chat with full span context on every session
 
 ### SDK — Python
-- [x] `agentloop.configure()` with `redact_pii=True` option
-- [x] `agentloop.session()` — context manager with user attribution, tags, agent versioning
-- [x] `agentloop.span()` — track any operation with prompt/response logging
-- [x] `@agentloop.task`, `@agentloop.llm_call`, `@agentloop.tool_call` decorators
+- [x] `dottle.configure()` with `redact_pii=True` option
+- [x] `dottle.session()` — context manager with user attribution, tags, agent versioning
+- [x] `dottle.span()` — track any operation with prompt/response logging
+- [x] `@dottle.task`, `@dottle.llm_call`, `@dottle.tool_call` decorators
 - [x] Background flush thread (non-blocking)
 - [x] Client-side loop detection
 - [x] Async agent support
 - [x] PII redaction (email, phone, credit card, SSN, IP, API keys, Bearer tokens)
 
 ### SDK — JavaScript / TypeScript
-- [x] `agentloop.configure()` — one-time setup
-- [x] `agentloop.session()` — async callback with full session options
-- [x] `agentloop.span()` with prompt/response recording
+- [x] `dottle.configure()` — one-time setup
+- [x] `dottle.session()` — async callback with full session options
+- [x] `dottle.span()` with prompt/response recording
 - [x] `wrapOpenAI(client)` — zero-friction OpenAI wrapper, auto-captures model/tokens/cost/prompts
 - [x] `wrapAnthropic(client)` — zero-friction Anthropic wrapper
-- [x] `@agentloop.tool_call` decorator — auto-track tool errors
+- [x] `@dottle.tool_call` decorator — auto-track tool errors
 - [x] **Concurrent session isolation** via AsyncLocalStorage (multiple parallel agent calls safe)
 - [x] Background flush interval
 - [x] PII redaction
@@ -97,42 +97,42 @@ Agentloop is an AI agent observability and debugging platform with four layers:
 
 > "Running voice AI for pest control and property management — handling real customer calls but flying blind. Need to know when the AI is struggling before the customer hangs up."
 
-### How Agentloop solves this today
+### How Dottle solves this today
 
-Each phone call maps perfectly to an Agentloop session:
+Each phone call maps perfectly to an Dottle session:
 
 ```python
-import agentloop
+import dottle
 
-agentloop.configure(api_key="alp_live_...")
+dottle.configure(api_key="dtl_live_...")
 
 # Each call = one session
-with agentloop.session(
+with dottle.session(
     "pest-control-voice-agent",
     user_id=caller_phone_number,          # track by caller
     tags=["inbound", "pest_control"],     # scenario tagging
     agent_version="v2.1.0",              # track prompt versions
 ) as sid:
 
-    with agentloop.span("tool", "speech_to_text") as s:
+    with dottle.span("tool", "speech_to_text") as s:
         transcript = transcribe(audio_chunk)
         s.record_output(transcript)
 
-    with agentloop.span("llm", "response_generation") as s:
+    with dottle.span("llm", "response_generation") as s:
         response = llm.chat(transcript)
         s.record_tokens(usage.input, usage.output, "gpt-4o")
         s.record_prompt(transcript, response.text)
 
-    with agentloop.span("tool", "lookup_customer") as s:
+    with dottle.span("tool", "lookup_customer") as s:
         customer = crm.find(caller_phone_number)
 
-    with agentloop.span("tool", "schedule_appointment") as s:
+    with dottle.span("tool", "schedule_appointment") as s:
         booking = calendar.book(customer, slot)
 ```
 
 ### What you get immediately
 
-| Pain point | How Agentloop solves it |
+| Pain point | How Dottle solves it |
 |---|---|
 | "Flying blind on live calls" | Sessions list shows every call in real-time as it happens. Session detail has live span polling (2s refresh) while the call is active |
 | "AI struggling before hangup" | Auto-detected issues: `high_latency` (slow responses), `repeated_tool_error` (tool failing repeatedly), `session_failed` (call crashed). Alerts fire within 60s |
@@ -248,7 +248,7 @@ with agentloop.session(
 ### Phase 2 — Growth (first customers)
 1. Cold outreach to voice AI operators (pest control, property management, healthcare)
 2. "How to monitor your Bland.ai agent" tutorials
-3. "Agentloop vs LangSmith" comparison content (high-intent SEO)
+3. "Dottle vs LangSmith" comparison content (high-intent SEO)
 4. Framework integrations: LangChain, CrewAI, AutoGen official guides
 
 ### Phase 3 — Scale (after $10K MRR)
@@ -265,7 +265,7 @@ with agentloop.session(
 
 **Medium term (year 2–3):** The Datadog of AI — the platform every AI team runs in production. Eval scoring, A/B agent testing, automatic regression alerting, team-level analytics.
 
-**Long term:** As AI agents become the primary way software gets written and run, Agentloop becomes infrastructure — as essential as logs, metrics, and traces are for traditional software today. Every agent deployment in every language runs through Agentloop.
+**Long term:** As AI agents become the primary way software gets written and run, Dottle becomes infrastructure — as essential as logs, metrics, and traces are for traditional software today. Every agent deployment in every language runs through Dottle.
 
 ---
 

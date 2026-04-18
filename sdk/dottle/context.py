@@ -11,16 +11,16 @@ from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import Any, Generator, AsyncGenerator
 
-from agentloop.client import get_client
-from agentloop.loop_detector import LoopDetector
-from agentloop.models import SpanPayload
-from agentloop.redaction import maybe_redact
+from dottle.client import get_client
+from dottle.loop_detector import LoopDetector
+from dottle.models import SpanPayload
+from dottle.redaction import maybe_redact
 
 # Per-context state
-_current_session_id: ContextVar[str | None] = ContextVar("agentloop_session_id", default=None)
-_span_stack: ContextVar[list[str]] = ContextVar("agentloop_span_stack", default=[])
-_loop_detector: ContextVar[LoopDetector | None] = ContextVar("agentloop_loop_detector", default=None)
-_iteration_count: ContextVar[int] = ContextVar("agentloop_iteration_count", default=0)
+_current_session_id: ContextVar[str | None] = ContextVar("dottle_session_id", default=None)
+_span_stack: ContextVar[list[str]] = ContextVar("dottle_span_stack", default=[])
+_loop_detector: ContextVar[LoopDetector | None] = ContextVar("dottle_loop_detector", default=None)
+_iteration_count: ContextVar[int] = ContextVar("dottle_iteration_count", default=0)
 
 
 class SpanContext:
@@ -49,7 +49,7 @@ class SpanContext:
 
     def record_prompt(self, input_text: str, output_text: str) -> None:
         """Store the actual prompt and response text for this LLM span."""
-        from agentloop.config import get_config
+        from dottle.config import get_config
         redact = get_config().redact_pii
         self.input_text = maybe_redact(input_text, redact)
         self.output_text = maybe_redact(output_text, redact)
@@ -100,9 +100,9 @@ def session(
     Context manager for a full agent session.
 
     Usage:
-        with agentloop.session("my_agent") as sid:
+        with dottle.session("my_agent") as sid:
             ...
-        with agentloop.session("my_agent", user_id="u123", tags=["prod"]) as sid:
+        with dottle.session("my_agent", user_id="u123", tags=["prod"]) as sid:
             ...
     """
     client = get_client()
@@ -165,7 +165,7 @@ def span(
     Context manager for any timed operation.
 
     Usage:
-        with agentloop.span("llm", "gpt-4o call") as s:
+        with dottle.span("llm", "gpt-4o call") as s:
             result = llm.complete(prompt)
             s.record_tokens(input=100, output=50, model="gpt-4o")
     """

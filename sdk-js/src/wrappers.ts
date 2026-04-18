@@ -15,25 +15,25 @@ interface OpenAILike {
       create: (...args: unknown[]) => Promise<unknown>;
     };
   };
-  __agentloop_wrapped?: boolean;
+  __dottle_wrapped?: boolean;
 }
 
 /**
  * Wrap an OpenAI client instance. All `chat.completions.create` calls inside
- * an agentloop session are automatically traced.
+ * an dottle session are automatically traced.
  *
  * @example
  * import OpenAI from "openai";
- * import agentloop, { wrapOpenAI } from "agentloop";
+ * import dottle, { wrapOpenAI } from "dottle";
  *
  * const openai = wrapOpenAI(new OpenAI({ apiKey: process.env.OPENAI_API_KEY }));
  *
- * await agentloop.session("my-agent", async () => {
+ * await dottle.session("my-agent", async () => {
  *   const res = await openai.chat.completions.create({ model: "gpt-4o", messages: [...] });
  * });
  */
 export function wrapOpenAI<T extends OpenAILike>(client: T): T {
-  if (client.__agentloop_wrapped) return client;
+  if (client.__dottle_wrapped) return client;
 
   const original = client.chat.completions.create.bind(client.chat.completions);
 
@@ -77,7 +77,7 @@ export function wrapOpenAI<T extends OpenAILike>(client: T): T {
       });
     };
 
-  client.__agentloop_wrapped = true;
+  client.__dottle_wrapped = true;
   return client;
 }
 
@@ -87,25 +87,25 @@ interface AnthropicLike {
   messages: {
     create: (...args: unknown[]) => Promise<unknown>;
   };
-  __agentloop_wrapped?: boolean;
+  __dottle_wrapped?: boolean;
 }
 
 /**
  * Wrap an Anthropic client instance. All `messages.create` calls inside
- * an agentloop session are automatically traced.
+ * an dottle session are automatically traced.
  *
  * @example
  * import Anthropic from "@anthropic-ai/sdk";
- * import agentloop, { wrapAnthropic } from "agentloop";
+ * import dottle, { wrapAnthropic } from "dottle";
  *
  * const anthropic = wrapAnthropic(new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }));
  *
- * await agentloop.session("my-agent", async () => {
+ * await dottle.session("my-agent", async () => {
  *   const msg = await anthropic.messages.create({ model: "claude-opus-4-6", ... });
  * });
  */
 export function wrapAnthropic<T extends AnthropicLike>(client: T): T {
-  if (client.__agentloop_wrapped) return client;
+  if (client.__dottle_wrapped) return client;
 
   const original = client.messages.create.bind(client.messages);
 
@@ -149,6 +149,6 @@ export function wrapAnthropic<T extends AnthropicLike>(client: T): T {
       });
     };
 
-  client.__agentloop_wrapped = true;
+  client.__dottle_wrapped = true;
   return client;
 }

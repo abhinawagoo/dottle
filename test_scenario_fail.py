@@ -11,11 +11,11 @@ What to look for in the dashboard:
 - Error rate metric goes up
 - Tool failure rate for 'query_database' goes up
 """
-import agentloop
+import dottle
 import time
 
-agentloop.configure(
-    api_key="alp_live_Zyp15I6iw3i35nbtpf8RJCu04aKmBRT2RrDLi_zP6oA",
+dottle.configure(
+    api_key="dtl_live_Zyp15I6iw3i35nbtpf8RJCu04aKmBRT2RrDLi_zP6oA",
     api_url="http://localhost:8000/api/v1",
     debug=True,
 )
@@ -23,11 +23,11 @@ agentloop.configure(
 print("Running: Failing Data Pipeline Agent...")
 
 try:
-    with agentloop.session("data-pipeline-agent", metadata={"scenario": "fail_test", "pipeline": "user_report_v2"}) as sid:
+    with dottle.session("data-pipeline-agent", metadata={"scenario": "fail_test", "pipeline": "user_report_v2"}) as sid:
         print(f"  Session: {sid}")
 
         # Step 1 — LLM decides what to query
-        with agentloop.span("llm", "gpt-4o: plan query") as s:
+        with dottle.span("llm", "gpt-4o: plan query") as s:
             time.sleep(0.2)
             s.record_tokens(180, 60, "gpt-4o")
             s.record_prompt(
@@ -36,14 +36,14 @@ try:
             )
 
         # Step 2 — First DB attempt: connection timeout
-        with agentloop.span("tool", "query_database", input_args={"query": "SELECT user_id..."}) as s:
+        with dottle.span("tool", "query_database", input_args={"query": "SELECT user_id..."}) as s:
             time.sleep(0.8)
             s.set_attribute("attempt", 1)
             s.set_attribute("db_host", "prod-db-01")
             s.set_error("Connection timed out after 800ms", "DatabaseTimeoutError")
 
         # Step 3 — LLM decides to retry
-        with agentloop.span("llm", "gpt-4o: handle error") as s:
+        with dottle.span("llm", "gpt-4o: handle error") as s:
             time.sleep(0.2)
             s.record_tokens(220, 55, "gpt-4o")
             s.record_prompt(
@@ -52,14 +52,14 @@ try:
             )
 
         # Step 4 — Second DB attempt: different error
-        with agentloop.span("tool", "query_database", input_args={"query": "SELECT user_id...", "replica": True}) as s:
+        with dottle.span("tool", "query_database", input_args={"query": "SELECT user_id...", "replica": True}) as s:
             time.sleep(1.2)
             s.set_attribute("attempt", 2)
             s.set_attribute("db_host", "prod-db-replica-01")
             s.set_error("Too many connections (max 100 reached)", "DatabaseConnectionError")
 
         # Step 5 — LLM tries one more time
-        with agentloop.span("llm", "gpt-4o: final retry decision") as s:
+        with dottle.span("llm", "gpt-4o: final retry decision") as s:
             time.sleep(0.2)
             s.record_tokens(195, 48, "gpt-4o")
             s.record_prompt(
@@ -68,7 +68,7 @@ try:
             )
 
         # Step 6 — Third attempt: fatal error, raise exception
-        with agentloop.span("tool", "query_database", input_args={"query": "SELECT COUNT(*) FROM events"}) as s:
+        with dottle.span("tool", "query_database", input_args={"query": "SELECT COUNT(*) FROM events"}) as s:
             time.sleep(0.5)
             s.set_attribute("attempt", 3)
             s.set_attribute("db_host", "prod-db-replica-02")

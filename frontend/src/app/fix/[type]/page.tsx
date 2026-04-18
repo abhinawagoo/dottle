@@ -351,7 +351,7 @@ export default function FixPage({ params }: Props) {
                   <p className="text-sm font-medium text-ink-primary">Create PR</p>
                   <input
                     type="text"
-                    placeholder={`fix(${issueType}): Agentloop auto-fix`}
+                    placeholder={`fix(${issueType}): Dottle auto-fix`}
                     value={prTitle}
                     onChange={e => setPrTitle(e.target.value)}
                     className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-sm text-ink-primary placeholder:text-ink-dim focus:outline-none focus:border-brand-500"

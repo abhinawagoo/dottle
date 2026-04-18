@@ -235,7 +235,7 @@ export default function SessionsPage() {
             description={
               hasFilters
                 ? "Try clearing the filters to see all sessions."
-                : "Instrument your agent with the Agentloop SDK to start tracking runs."
+                : "Instrument your agent with the Dottle SDK to start tracking runs."
             }
             action={
               hasFilters ? (

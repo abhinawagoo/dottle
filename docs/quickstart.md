@@ -16,10 +16,10 @@ Verify all 4 containers are running:
 
 ```bash
 docker ps
-# agentloop_frontend   → http://localhost:3000
-# agentloop_backend    → http://localhost:8000
-# agentloop_db         → TimescaleDB on :5432
-# agentloop_redis      → Redis on :6379
+# dottle_frontend   → http://localhost:3000
+# dottle_backend    → http://localhost:8000
+# dottle_db         → TimescaleDB on :5432
+# dottle_redis      → Redis on :6379
 ```
 
 ---
@@ -32,7 +32,7 @@ docker ps
 
 | Value | Where to use |
 |---|---|
-| `alp_live_xxxxxxxx` (API key) | `agentloop.configure(api_key=...)` in your agent code |
+| `dtl_live_xxxxxxxx` (API key) | `dottle.configure(api_key=...)` in your agent code |
 | `NEXT_PUBLIC_DEFAULT_PROJECT_ID=<uuid>` | Frontend env var so the dashboard shows your project's data |
 
 **Connect the dashboard to your project:**
@@ -49,7 +49,7 @@ frontend:
 Then restart the frontend:
 
 ```bash
-docker restart agentloop_frontend
+docker restart dottle_frontend
 ```
 
 ---
@@ -57,7 +57,7 @@ docker restart agentloop_frontend
 ## Step 3 — Install the SDK
 
 ```bash
-# From the agentloop repo root
+# From the dottle repo root
 pip install -e ./sdk
 
 # Required dependencies
@@ -73,22 +73,22 @@ Choose the style that fits your codebase.
 ### Option A — Decorators (recommended, least code)
 
 ```python
-import agentloop
+import dottle
 
-agentloop.configure(
-    api_key="alp_live_xxxxxxxx",            # from Settings page
+dottle.configure(
+    api_key="dtl_live_xxxxxxxx",            # from Settings page
     api_url="http://localhost:8000/api/v1"  # your backend URL
 )
 
 
-@agentloop.task("research-agent")           # entire function becomes one session
+@dottle.task("research-agent")           # entire function becomes one session
 def run_agent(query: str) -> str:
     result = call_llm(query)
     docs   = search_web(query=query)
     return result["content"]
 
 
-@agentloop.llm_call(model="gpt-4o")        # records tokens automatically
+@dottle.llm_call(model="gpt-4o")        # records tokens automatically
 def call_llm(prompt: str) -> dict:
     r = openai_client.chat.completions.create(
         model="gpt-4o",
@@ -101,29 +101,29 @@ def call_llm(prompt: str) -> dict:
     }
 
 
-@agentloop.tool_call("search_web")         # auto-hashes args for loop detection
+@dottle.tool_call("search_web")         # auto-hashes args for loop detection
 def search_web(query: str) -> list:
     return requests.get(f"https://api.search.com?q={query}").json()
 
 
-# Run your agent — data flows to Agentloop automatically
+# Run your agent — data flows to Dottle automatically
 run_agent("What is the capital of France?")
 ```
 
 ### Option B — Context managers (explicit control)
 
 ```python
-import agentloop
+import dottle
 
-agentloop.configure(
-    api_key="alp_live_xxxxxxxx",
+dottle.configure(
+    api_key="dtl_live_xxxxxxxx",
     api_url="http://localhost:8000/api/v1"
 )
 
-with agentloop.session("research-agent") as session_id:
+with dottle.session("research-agent") as session_id:
 
     # Track an LLM call
-    with agentloop.span("llm", "gpt-4o plan step") as s:
+    with dottle.span("llm", "gpt-4o plan step") as s:
         response = openai_client.chat.completions.create(...)
         s.record_tokens(
             input=response.usage.prompt_tokens,
@@ -132,15 +132,15 @@ with agentloop.session("research-agent") as session_id:
         )
 
     # Track a tool call
-    with agentloop.span("tool", "search_web") as s:
+    with dottle.span("tool", "search_web") as s:
         results = search(query)
 
     # Track a retrieval (RAG, vector DB, etc.)
-    with agentloop.span("retrieval", "pinecone_query") as s:
+    with dottle.span("retrieval", "pinecone_query") as s:
         docs = vectordb.query(embedding)
 
     # Mark something as failed
-    with agentloop.span("tool", "send_email") as s:
+    with dottle.span("tool", "send_email") as s:
         try:
             send_email(to, body)
         except Exception as e:
@@ -153,9 +153,9 @@ with agentloop.session("research-agent") as session_id:
 Both APIs work unchanged with `async def`:
 
 ```python
-@agentloop.task("async-agent")
+@dottle.task("async-agent")
 async def run_async(query: str):
-    with agentloop.span("llm", "claude-3 call") as s:
+    with dottle.span("llm", "claude-3 call") as s:
         response = await async_openai.chat.completions.create(...)
         s.record_tokens(
             input=response.usage.prompt_tokens,
@@ -171,25 +171,25 @@ async def run_async(query: str):
 Run this to confirm the pipeline works before integrating your agent:
 
 ```python
-import agentloop, time
+import dottle, time
 
-agentloop.configure(
-    api_key="alp_live_xxxxxxxx",
+dottle.configure(
+    api_key="dtl_live_xxxxxxxx",
     api_url="http://localhost:8000/api/v1",
     debug=True   # prints flush confirmations to stdout
 )
 
-with agentloop.session("smoke-test") as sid:
+with dottle.session("smoke-test") as sid:
     print(f"Session ID: {sid}")
 
-    with agentloop.span("llm", "fake-gpt-call") as s:
+    with dottle.span("llm", "fake-gpt-call") as s:
         time.sleep(0.1)
         s.record_tokens(input=200, output=80, model="gpt-4o")
 
-    with agentloop.span("tool", "fake-search") as s:
+    with dottle.span("tool", "fake-search") as s:
         time.sleep(0.05)
 
-    with agentloop.span("retrieval", "fake-vector-db") as s:
+    with dottle.span("retrieval", "fake-vector-db") as s:
         time.sleep(0.03)
 
 print("Done — check http://localhost:3000/sessions")
@@ -216,7 +216,7 @@ The stack runs entirely on your machine. Your agent code also runs on the same m
 
 ```
 Your machine
-├── Agentloop stack  (Docker, localhost:8000, localhost:3000)
+├── Dottle stack  (Docker, localhost:8000, localhost:3000)
 └── Your agent code  (Python script, Jupyter notebook, etc.)
         ↓ HTTP to localhost:8000 ✓
 ```
@@ -238,7 +238,7 @@ Your machine
 
 ```
 VPS / Cloud server (e.g. api.yourcompany.com)
-├── Agentloop stack  (Docker)
+├── Dottle stack  (Docker)
 └── Accessible via public IP/domain
 
 Your agent code (anywhere)
@@ -248,8 +248,8 @@ Your agent code (anywhere)
 Just change `api_url` in your `configure()` call:
 
 ```python
-agentloop.configure(
-    api_key="alp_live_xxxxxxxx",
+dottle.configure(
+    api_key="dtl_live_xxxxxxxx",
     api_url="https://api.yourcompany.com/api/v1"  # your live backend
 )
 ```
@@ -260,8 +260,8 @@ agentloop.configure(
 
 ```python
 # Configure once at startup — call before any session/span
-agentloop.configure(
-    api_key="alp_live_...",         # required
+dottle.configure(
+    api_key="dtl_live_...",         # required
     api_url="http://...",           # required
     debug=False,                    # True → logs every flush to stdout
     disabled=False,                 # True → SDK is a no-op (useful in tests)
@@ -271,11 +271,11 @@ agentloop.configure(
 )
 
 # Span types
-agentloop.span("llm", name)         # LLM call — blue in trace
-agentloop.span("tool", name)        # Tool call — amber in trace
-agentloop.span("retrieval", name)   # Vector DB / search — green in trace
-agentloop.span("agent", name)       # Sub-agent call — indigo in trace
-agentloop.span("custom", name)      # Anything else — purple in trace
+dottle.span("llm", name)         # LLM call — blue in trace
+dottle.span("tool", name)        # Tool call — amber in trace
+dottle.span("retrieval", name)   # Vector DB / search — green in trace
+dottle.span("agent", name)       # Sub-agent call — indigo in trace
+dottle.span("custom", name)      # Anything else — purple in trace
 
 # SpanContext methods (inside a `with span(...) as s:` block)
 s.record_tokens(input=100, output=50, model="gpt-4o")
@@ -283,9 +283,9 @@ s.set_error("message", "ErrorType")
 s.set_attribute("key", value)
 
 # Decorators
-@agentloop.task("agent-name")       # wraps function as a full session
-@agentloop.llm_call(model="...")    # function must return {content, input_tokens, output_tokens}
-@agentloop.tool_call("tool-name")   # auto-tracks errors and hashes args
+@dottle.task("agent-name")       # wraps function as a full session
+@dottle.llm_call(model="...")    # function must return {content, input_tokens, output_tokens}
+@dottle.tool_call("tool-name")   # auto-tracks errors and hashes args
 ```
 
 ---
@@ -305,6 +305,6 @@ s.set_attribute("key", value)
 - Click the session row — the trace timeline will show which span errored
 - The error message and type are recorded and shown in the detail view
 
-**`alp_live_...` key rejected (401)**
+**`dtl_live_...` key rejected (401)**
 - Re-copy the key from Settings — keys are per-project
 - The key is sent as `X-API-Key` header — check no extra whitespace was copied

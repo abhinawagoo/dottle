@@ -14,15 +14,15 @@ logger = structlog.get_logger()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting Agentloop backend", version=settings.app_version)
+    logger.info("Starting Dottle backend", version=settings.app_version)
     start_alert_worker(interval_seconds=settings.alert_poll_interval_seconds)
     yield
     stop_alert_worker()
-    logger.info("Agentloop backend stopped")
+    logger.info("Dottle backend stopped")
 
 
 app = FastAPI(
-    title="Agentloop API",
+    title="Dottle API",
     description="AI Agent Observability Platform — like Sentry, but for AI agents",
     version=settings.app_version,
     docs_url="/docs",

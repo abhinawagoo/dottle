@@ -1,17 +1,17 @@
 """
-Decorator API for agentloop.
+Decorator API for dottle.
 Wraps functions/methods without requiring context managers.
 
 Usage:
-    @agentloop.task("research_agent")
+    @dottle.task("research_agent")
     def run_agent(query: str) -> str:
         ...
 
-    @agentloop.tool_call("search_web")
+    @dottle.tool_call("search_web")
     def search(query: str) -> list:
         ...
 
-    @agentloop.llm_call(model="gpt-4o")
+    @dottle.llm_call(model="gpt-4o")
     def call_llm(prompt: str) -> dict:
         # Must return dict with keys: content, input_tokens, output_tokens
         ...
@@ -21,14 +21,14 @@ import functools
 import inspect
 from typing import Any, Callable, TypeVar
 
-from agentloop.context import session, span
+from dottle.context import session, span
 
 F = TypeVar("F", bound=Callable[..., Any])
 
 
 def task(agent_name: str, metadata: dict | None = None):
     """
-    Decorator that wraps the entire function in an agentloop session.
+    Decorator that wraps the entire function in an dottle session.
     """
     def decorator(func: F) -> F:
         if inspect.iscoroutinefunction(func):

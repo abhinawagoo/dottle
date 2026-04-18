@@ -10,7 +10,7 @@ Interactive docs: `http://localhost:8000/docs` (Swagger UI)
 
 SDK-facing ingest endpoints require `X-API-Key` header:
 ```
-X-API-Key: alp_live_your_key_here
+X-API-Key: dtl_live_your_key_here
 ```
 
 Dashboard endpoints (sessions, metrics, alerts) are unauthenticated in v1.
@@ -30,7 +30,7 @@ Create a new project and generate an API key.
 {
   "id": "uuid",
   "name": "research-agent",
-  "api_key": "alp_live_xxxxxxxxxxxx",
+  "api_key": "dtl_live_xxxxxxxxxxxx",
   "created_at": "2026-04-12T10:00:00Z"
 }
 ```

@@ -1,15 +1,15 @@
-import { AgentloopConfig, SpanData, SessionOptions } from "./types";
+import { DottleConfig, SpanData, SessionOptions } from "./types";
 import { maybeRedact } from "./redaction";
 
 interface BufferedSpan { sessionId: string; span: SpanData }
 
-export class AgentloopClient {
-  private config: Required<AgentloopConfig>;
+export class DottleClient {
+  private config: Required<DottleConfig>;
   private buffer: BufferedSpan[] = [];
   private currentSessionId: string | null = null;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(config: AgentloopConfig) {
+  constructor(config: DottleConfig) {
     this.config = {
       debug: false,
       disabled: false,
@@ -140,10 +140,10 @@ export class AgentloopClient {
             })),
           });
           if (this.config.debug) {
-            console.log(`[agentloop] Flushed ${chunk.length} spans for session ${sid}`);
+            console.log(`[dottle] Flushed ${chunk.length} spans for session ${sid}`);
           }
         } catch (err) {
-          console.warn("[agentloop] Flush failed (spans dropped):", err);
+          console.warn("[dottle] Flush failed (spans dropped):", err);
         }
       }
     }
@@ -176,7 +176,7 @@ export class AgentloopClient {
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
-        throw new Error(`Agentloop API ${res.status}: ${text}`);
+        throw new Error(`Dottle API ${res.status}: ${text}`);
       }
 
       return res.json() as Promise<Record<string, unknown>>;
@@ -188,15 +188,15 @@ export class AgentloopClient {
 
 // ── Singleton ──────────────────────────────────────────────────────────────────
 
-let _client: AgentloopClient | null = null;
+let _client: DottleClient | null = null;
 
-export function getClient(): AgentloopClient {
-  if (!_client) throw new Error("Call agentloop.configure() before using the SDK");
+export function getClient(): DottleClient {
+  if (!_client) throw new Error("Call dottle.configure() before using the SDK");
   return _client;
 }
 
-export function initClient(config: AgentloopConfig): AgentloopClient {
+export function initClient(config: DottleConfig): DottleClient {
   _client?.shutdown();
-  _client = new AgentloopClient(config);
+  _client = new DottleClient(config);
   return _client;
 }

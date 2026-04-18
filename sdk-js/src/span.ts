@@ -1,5 +1,5 @@
 import { SpanData, SpanType, SessionStore } from "./types";
-import { AgentloopClient } from "./client";
+import { DottleClient } from "./client";
 
 // ── AsyncLocalStorage context ──────────────────────────────────────────────────
 
@@ -111,7 +111,7 @@ export class SpanContext {
 // ── runSpan ────────────────────────────────────────────────────────────────────
 
 export async function runSpan<T>(
-  client: AgentloopClient,
+  client: DottleClient,
   spanType: SpanType,
   name: string,
   fn: (span: SpanContext) => Promise<T>,

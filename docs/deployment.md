@@ -95,10 +95,10 @@ certbot --nginx -d your-domain.com
 
 ```bash
 # Backup
-docker compose exec db pg_dump -U agentloop agentloop | gzip > backup_$(date +%Y%m%d).sql.gz
+docker compose exec db pg_dump -U dottle dottle | gzip > backup_$(date +%Y%m%d).sql.gz
 
 # Restore
-gunzip -c backup_20260412.sql.gz | docker compose exec -T db psql -U agentloop agentloop
+gunzip -c backup_20260412.sql.gz | docker compose exec -T db psql -U dottle dottle
 ```
 
 ## TimescaleDB Data Retention

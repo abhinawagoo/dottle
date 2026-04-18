@@ -55,7 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="dark">
       <head>
-        <title>Agentloop — AI Agent Observability</title>
+        <title>Dottle — AI Agent Observability</title>
         <meta name="description" content="Catch agent drift before your users do" />
       </head>
       <body className="bg-dark-bg text-ink-primary">

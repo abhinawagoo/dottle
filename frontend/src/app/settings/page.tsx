@@ -281,7 +281,7 @@ export default function SettingsPage() {
                   Invite
                 </Button>
               </div>
-              <p className="text-[10px] text-ink-dim mt-2">The user must already have an Agentloop account.</p>
+              <p className="text-[10px] text-ink-dim mt-2">The user must already have an Dottle account.</p>
             </div>
           )}
         </Card>
@@ -362,15 +362,15 @@ export default function SettingsPage() {
 
                 <div className="mt-3 bg-dark-bg rounded-lg border border-dark-divider p-3">
                   <p className="text-[10px] text-ink-muted uppercase tracking-wider font-semibold mb-2.5">Quick Start</p>
-                  <pre className="text-[11px] font-mono text-ink-secondary leading-relaxed overflow-auto">{`import agentloop
+                  <pre className="text-[11px] font-mono text-ink-secondary leading-relaxed overflow-auto">{`import dottle
 
-agentloop.configure(
+dottle.configure(
     api_key="${p.api_key}",
     api_url="http://localhost:8000/api/v1"
 )
 
-with agentloop.session("my_agent") as sid:
-    with agentloop.span("llm", "gpt-4o") as s:
+with dottle.session("my_agent") as sid:
+    with dottle.span("llm", "gpt-4o") as s:
         s.record_tokens(512, 128, "gpt-4o")`}</pre>
                 </div>
               </div>

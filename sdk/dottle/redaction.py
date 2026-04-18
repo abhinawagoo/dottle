@@ -1,7 +1,7 @@
 """
 PII redaction for prompt/response text.
-Runs regex patterns over text before it's sent to the Agentloop backend.
-Enable with: agentloop.configure(redact_pii=True)
+Runs regex patterns over text before it's sent to the Dottle backend.
+Enable with: dottle.configure(redact_pii=True)
 """
 from __future__ import annotations
 import re

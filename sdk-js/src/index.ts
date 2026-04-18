@@ -1,34 +1,34 @@
 /**
- * Agentloop SDK for JavaScript / TypeScript
+ * Dottle SDK for JavaScript / TypeScript
  *
  * Quick start (manual instrumentation):
- *   import agentloop from "agentloop";
+ *   import dottle from "dottle";
  *
- *   agentloop.configure({ apiKey: "alp_live_...", apiUrl: "https://api.agentloop.dev/api/v1" });
+ *   dottle.configure({ apiKey: "dtl_live_...", apiUrl: "https://api.dottle.dev/api/v1" });
  *
- *   await agentloop.session("my-agent", async () => {
- *     await agentloop.span("llm", "gpt-4o call", async (s) => {
+ *   await dottle.session("my-agent", async () => {
+ *     await dottle.span("llm", "gpt-4o call", async (s) => {
  *       const res = await openai.chat.completions.create({ ... });
  *       s.recordTokens(res.usage.prompt_tokens, res.usage.completion_tokens, "gpt-4o");
  *     });
  *   }, { userEmail: "alice@example.com", tags: ["prod"] });
  *
  * Zero-friction (auto-instrument):
- *   const openai = agentloop.wrapOpenAI(new OpenAI({ apiKey: "..." }));
+ *   const openai = dottle.wrapOpenAI(new OpenAI({ apiKey: "..." }));
  *   // All chat.completions.create calls are now automatically traced
  */
 
-import { AgentloopConfig, SpanType, SessionOptions } from "./types";
-import { AgentloopClient, getClient, initClient } from "./client";
+import { DottleConfig, SpanType, SessionOptions } from "./types";
+import { DottleClient, getClient, initClient } from "./client";
 import { SpanContext, runSpan, runWithStore, getCurrentStore } from "./span";
 import { wrapOpenAI, wrapAnthropic } from "./wrappers";
 
-export { AgentloopConfig, SpanType, SpanContext, SessionOptions };
+export { DottleConfig, SpanType, SpanContext, SessionOptions };
 export { wrapOpenAI, wrapAnthropic };
 
 // ── configure ──────────────────────────────────────────────────────────────────
 
-function configure(config: AgentloopConfig): void {
+function configure(config: DottleConfig): void {
   initClient(config);
 }
 
@@ -113,7 +113,7 @@ function getCurrentSessionId(): string | undefined {
 
 // ── default export ────────────────────────────────────────────────────────────
 
-const agentloop = {
+const dottle = {
   configure,
   session,
   span,
@@ -125,5 +125,5 @@ const agentloop = {
   getCurrentSessionId,
 };
 
-export default agentloop;
+export default dottle;
 export { configure, session, span, wrapLlm, wrapTool, shutdown, getCurrentSessionId };

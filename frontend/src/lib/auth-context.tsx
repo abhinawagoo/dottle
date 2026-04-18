@@ -25,7 +25,7 @@ const AuthContext = createContext<AuthContextValue>({
   logout: () => {},
 });
 
-const TOKEN_KEY = "agentloop_token";
+const TOKEN_KEY = "dottle_token";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);

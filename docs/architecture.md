@@ -1,4 +1,4 @@
-# Agentloop Architecture
+# Dottle Architecture
 
 ## System Overview
 
@@ -6,7 +6,7 @@
 ┌────────────────────────────────────────────────────────────────┐
 │                        Your AI Agent                          │
 │                                                                │
-│   agentloop SDK (Python)                                       │
+│   dottle SDK (Python)                                       │
 │   ├── session() context manager                                │
 │   ├── span() context manager                                   │
 │   ├── LoopDetector (client-side)                               │

@@ -47,7 +47,7 @@ export default function RegisterPage() {
           <div className="w-8 h-8 rounded-xl bg-brand-600 flex items-center justify-center">
             <Zap className="w-4 h-4 text-white" />
           </div>
-          <span className="text-lg font-bold text-ink-primary tracking-tight">Agentloop</span>
+          <span className="text-lg font-bold text-ink-primary tracking-tight">Dottle</span>
         </div>
 
         <div className="bg-dark-surface border border-dark-border rounded-2xl p-8 shadow-card">

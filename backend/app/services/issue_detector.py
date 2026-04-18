@@ -289,7 +289,7 @@ def _detect_zero_llm_calls(s: SessionSnapshot) -> list[IssueResult]:
             description=(
                 f"This session ran **{len(tool_spans)} tool calls** but no LLM spans were recorded.\n\n"
                 f"If your agent does call an LLM, make sure it's instrumented with "
-                f"`agentloop.wrap_openai()`, `agentloop.wrap_anthropic()`, or a manual `span('llm', ...)`."
+                f"`dottle.wrap_openai()`, `dottle.wrap_anthropic()`, or a manual `span('llm', ...)`."
             ),
         )]
 

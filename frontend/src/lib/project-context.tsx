@@ -19,7 +19,7 @@ const ProjectContext = createContext<ProjectContextValue>({
   isLoading: true,
 });
 
-const STORAGE_KEY = "agentloop_project_id";
+const STORAGE_KEY = "dottle_project_id";
 
 export function ProjectProvider({ children }: { children: ReactNode }) {
   const { selectedOrg } = useOrg();

@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # App
-    app_name: str = "Agentloop"
+    app_name: str = "Dottle"
     app_version: str = "0.1.0"
     environment: str = "development"
     secret_key: str = "change-me-to-a-32-char-random-string"
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_origins.split(",")]
 
     # Database
-    database_url: str = "postgresql+asyncpg://agentloop:agentloop_secret@localhost:5432/agentloop"
+    database_url: str = "postgresql+asyncpg://dottle:dottle_secret@localhost:5432/dottle"
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_password: str = ""
-    alert_from_email: str = "alerts@agentloop.io"
+    alert_from_email: str = "alerts@dottle.dev"
 
     # Slack
     slack_default_webhook: str = ""

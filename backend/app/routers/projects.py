@@ -60,7 +60,7 @@ async def create_project(
         created_by=current_user.id,
         name=body.name,
         description=body.description,
-        api_key=f"alp_live_{secrets.token_urlsafe(32)}",
+        api_key=f"dtl_live_{secrets.token_urlsafe(32)}",
         created_at=datetime.now(timezone.utc),
     )
     db.add(project)
@@ -123,6 +123,6 @@ async def regenerate_api_key(
         raise HTTPException(status_code=404, detail="Project not found")
     if project.org_id:
         await _require_org_access(project.org_id, current_user, db, min_role="admin")
-    project.api_key = f"alp_live_{secrets.token_urlsafe(32)}"
+    project.api_key = f"dtl_live_{secrets.token_urlsafe(32)}"
     await db.flush()
     return project

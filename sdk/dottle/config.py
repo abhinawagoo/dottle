@@ -17,11 +17,11 @@ class AgentLoopConfig:
     def validate(self) -> None:
         if not self.api_key:
             raise ValueError(
-                "Agentloop API key not set. "
+                "Dottle API key not set. "
                 "Set AGENTLOOP_API_KEY env var or pass api_key= to AgentLoop()"
             )
         if not self.api_url:
-            raise ValueError("Agentloop API URL not set.")
+            raise ValueError("Dottle API URL not set.")
 
 
 # Global default config — overridable via AgentLoop(config=...)

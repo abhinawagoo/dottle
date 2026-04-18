@@ -19,7 +19,7 @@ async def send_slack(webhook_url: str, message: str, rule_name: str, metric_valu
         "blocks": [
             {
                 "type": "header",
-                "text": {"type": "plain_text", "text": f"🚨 Agentloop Alert: {rule_name}"}
+                "text": {"type": "plain_text", "text": f"🚨 Dottle Alert: {rule_name}"}
             },
             {
                 "type": "section",
@@ -29,7 +29,7 @@ async def send_slack(webhook_url: str, message: str, rule_name: str, metric_valu
                 "type": "context",
                 "elements": [
                     {"type": "mrkdwn", "text": f"*Metric value:* `{metric_value}`"},
-                    {"type": "mrkdwn", "text": "Sent by Agentloop · <http://localhost:3000|Open Dashboard>"}
+                    {"type": "mrkdwn", "text": "Sent by Dottle · <http://localhost:3000|Open Dashboard>"}
                 ]
             }
         ]
@@ -75,12 +75,12 @@ async def dispatch_alert(channel: str, destination: str, rule_name: str, message
         return ok, None if ok else "Slack POST failed"
     elif channel == "email":
         html = f"""
-        <h2>Agentloop Alert: {rule_name}</h2>
+        <h2>Dottle Alert: {rule_name}</h2>
         <p>{message}</p>
         <p><strong>Metric value:</strong> {metric_value}</p>
         <p><a href="http://localhost:3000">Open Dashboard</a></p>
         """
-        ok = send_email(destination, f"[Agentloop] {rule_name}", html)
+        ok = send_email(destination, f"[Dottle] {rule_name}", html)
         return ok, None if ok else "SMTP send failed"
     else:
         return False, f"Unknown channel: {channel}"

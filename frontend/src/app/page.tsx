@@ -153,7 +153,7 @@ export default function DashboardPage() {
           <EmptyState
             icon={<Layers />}
             title="No sessions yet"
-            description="Instrument your agent with the Agentloop SDK to start tracking runs."
+            description="Instrument your agent with the Dottle SDK to start tracking runs."
             action={
               <Link href="/settings">
                 <Button variant="secondary" size="sm">

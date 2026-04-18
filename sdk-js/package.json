@@ -1,7 +1,7 @@
 {
-  "name": "agentloop",
+  "name": "dottle",
   "version": "0.1.0",
-  "description": "Agentloop SDK for JavaScript/TypeScript — instrument your AI agents in 3 lines of code",
+  "description": "Dottle SDK for JavaScript/TypeScript — instrument your AI agents in 3 lines of code",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",

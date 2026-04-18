@@ -59,7 +59,7 @@ export default function Sidebar() {
           <Zap className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
         </div>
         <span className="text-[13px] font-semibold tracking-tight text-ink-primary">
-          agentloop
+          dottle
         </span>
       </div>
 

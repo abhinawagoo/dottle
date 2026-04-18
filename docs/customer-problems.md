@@ -1,4 +1,4 @@
-# Real Customer Problems — Agentloop
+# Real Customer Problems — Dottle
 
 > This file tracks actual problems real people are facing with AI agents in production.
 > Use it to guide product decisions, marketing copy, and what to build next.

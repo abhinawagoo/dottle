@@ -1,6 +1,6 @@
 """
 HTTP client with background flush thread.
-Batches spans and POSTs them to the Agentloop backend.
+Batches spans and POSTs them to the Dottle backend.
 Fire-and-forget: failed flushes warn but never block the agent.
 """
 from __future__ import annotations
@@ -13,10 +13,10 @@ from typing import Any
 
 import httpx
 
-from agentloop.config import AgentLoopConfig, get_config
-from agentloop.models import SpanPayload, SessionStartPayload, SessionEndPayload, SpanIngestPayload
+from dottle.config import AgentLoopConfig, get_config
+from dottle.models import SpanPayload, SessionStartPayload, SessionEndPayload, SpanIngestPayload
 
-logger = logging.getLogger("agentloop")
+logger = logging.getLogger("dottle")
 
 
 class AgentLoopClient:
@@ -124,7 +124,7 @@ class AgentLoopClient:
                 if self._config.debug:
                     logger.debug(f"Flushed {len(chunk)} spans for session {sid}")
             except Exception as exc:
-                logger.warning(f"Agentloop flush failed (spans dropped): {exc}")
+                logger.warning(f"Dottle flush failed (spans dropped): {exc}")
 
     def _start_flush_thread(self) -> None:
         interval_s = self._config.flush_interval_ms / 1000.0
@@ -134,7 +134,7 @@ class AgentLoopClient:
                 self._stop_event.wait(timeout=interval_s)
                 self._flush()
 
-        self._flush_thread = threading.Thread(target=_loop, daemon=True, name="agentloop-flush")
+        self._flush_thread = threading.Thread(target=_loop, daemon=True, name="dottle-flush")
         self._flush_thread.start()
 
     def shutdown(self) -> None:
@@ -154,10 +154,10 @@ class AgentLoopClient:
                 resp.raise_for_status()
                 return resp.json()
         except httpx.HTTPStatusError as exc:
-            logger.warning(f"Agentloop API error {exc.response.status_code}: {exc.response.text}")
+            logger.warning(f"Dottle API error {exc.response.status_code}: {exc.response.text}")
             raise
         except Exception as exc:
-            logger.warning(f"Agentloop network error: {exc}")
+            logger.warning(f"Dottle network error: {exc}")
             raise
 
 

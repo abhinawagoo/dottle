@@ -3,14 +3,14 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-name = "agentloop"
+name = "dottle"
 version = "0.1.0"
-description = "Agentloop SDK — Instrument your AI agents in 3 lines of code"
-authors = ["Agentloop Team"]
+description = "Dottle SDK — Instrument your AI agents in 3 lines of code"
+authors = ["Dottle Team"]
 readme = "README.md"
 license = "MIT"
-homepage = "https://agentloop.io"
-repository = "https://github.com/agentloop/agentloop-python"
+homepage = "https://dottle.dev"
+repository = "https://github.com/dottle/dottle-python"
 keywords = ["ai", "agents", "observability", "monitoring", "llm", "tracing"]
 classifiers = [
     "Development Status :: 4 - Beta",

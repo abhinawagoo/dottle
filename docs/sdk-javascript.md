@@ -10,11 +10,11 @@ Works in **Node.js**, **Next.js**, **Express**, **Remix**, or any JS runtime wit
 ## Install
 
 ```bash
-# From the agentloop repo
+# From the dottle repo
 npm install ../sdk-js        # local
 
 # Once published to npm:
-npm install agentloop
+npm install dottle
 ```
 
 ---
@@ -22,16 +22,16 @@ npm install agentloop
 ## Setup — configure once at startup
 
 ```ts
-import agentloop from "agentloop";
+import dottle from "dottle";
 
-agentloop.configure({
-  apiKey:  "alp_live_xxxxxxxx",              // from Settings → your project
-  apiUrl:  "http://localhost:8000/api/v1",   // your Agentloop backend URL
+dottle.configure({
+  apiKey:  "dtl_live_xxxxxxxx",              // from Settings → your project
+  apiUrl:  "http://localhost:8000/api/v1",   // your Dottle backend URL
   debug:   false,                            // true → logs every flush
 });
 ```
 
-In **Next.js** put this in a file that runs once (e.g. `lib/agentloop.ts`) and import it in your API route / server action.
+In **Next.js** put this in a file that runs once (e.g. `lib/dottle.ts`) and import it in your API route / server action.
 
 ---
 
@@ -42,12 +42,12 @@ In **Next.js** put this in a file that runs once (e.g. `lib/agentloop.ts`) and i
 Mirrors the Python context-manager style. Wrap your agent entry point in `session()`, and each operation in `span()`.
 
 ```ts
-import agentloop from "agentloop";
+import dottle from "dottle";
 
-const answer = await agentloop.session("research-agent", async () => {
+const answer = await dottle.session("research-agent", async () => {
 
   // Track an LLM call
-  const plan = await agentloop.span("llm", "gpt-4o plan step", async (s) => {
+  const plan = await dottle.span("llm", "gpt-4o plan step", async (s) => {
     const res = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [{ role: "user", content: "Plan a research task" }],
@@ -61,14 +61,14 @@ const answer = await agentloop.session("research-agent", async () => {
   });
 
   // Track a tool call
-  const results = await agentloop.span("tool", "search_web", async (s) => {
+  const results = await dottle.span("tool", "search_web", async (s) => {
     const data = await searchWeb(plan);
     s.setAttribute("result_count", data.length);
     return data;
   });
 
   // Track a retrieval (RAG, vector DB)
-  const docs = await agentloop.span("retrieval", "pinecone_query", async () => {
+  const docs = await dottle.span("retrieval", "pinecone_query", async () => {
     return vectordb.query(embedding);
   });
 
@@ -81,10 +81,10 @@ const answer = await agentloop.session("research-agent", async () => {
 Wrap your existing functions once — they track automatically on every call.
 
 ```ts
-import agentloop from "agentloop";
+import dottle from "dottle";
 
 // Define your tracked functions
-const callGPT = agentloop.wrapLlm("gpt-4o", async (prompt: string) => {
+const callGPT = dottle.wrapLlm("gpt-4o", async (prompt: string) => {
   const res = await openai.chat.completions.create({
     model: "gpt-4o",
     messages: [{ role: "user", content: prompt }],
@@ -96,12 +96,12 @@ const callGPT = agentloop.wrapLlm("gpt-4o", async (prompt: string) => {
   };
 });
 
-const searchWeb = agentloop.wrapTool("search_web", async (query: string) => {
+const searchWeb = dottle.wrapTool("search_web", async (query: string) => {
   return fetch(`https://api.search.com?q=${query}`).then(r => r.json());
 });
 
 // Use them normally — tracking is automatic
-await agentloop.session("my-agent", async () => {
+await dottle.session("my-agent", async () => {
   const plan   = await callGPT("Plan a research task");
   const data   = await searchWeb(plan.content);
   const answer = await callGPT(`Synthesize: ${JSON.stringify(data)}`);
@@ -114,16 +114,16 @@ await agentloop.session("my-agent", async () => {
 Spans can be nested — they automatically build a parent–child tree in the trace timeline.
 
 ```ts
-await agentloop.session("orchestrator", async () => {
+await dottle.session("orchestrator", async () => {
 
-  await agentloop.span("agent", "research-sub-agent", async () => {
+  await dottle.span("agent", "research-sub-agent", async () => {
     // nested spans become children of "research-sub-agent"
-    await agentloop.span("llm",  "search query generation", async (s) => { ... });
-    await agentloop.span("tool", "web_search",              async (s) => { ... });
+    await dottle.span("llm",  "search query generation", async (s) => { ... });
+    await dottle.span("tool", "web_search",              async (s) => { ... });
   });
 
-  await agentloop.span("agent", "writer-sub-agent", async () => {
-    await agentloop.span("llm", "draft generation", async (s) => { ... });
+  await dottle.span("agent", "writer-sub-agent", async () => {
+    await dottle.span("llm", "draft generation", async (s) => { ... });
   });
 
 });
@@ -136,11 +136,11 @@ await agentloop.session("orchestrator", async () => {
 ```ts
 // app/api/chat/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import agentloop from "agentloop";
+import dottle from "dottle";
 import OpenAI from "openai";
 
 // Configure once (module-level, runs on first import)
-agentloop.configure({
+dottle.configure({
   apiKey:  process.env.AGENTLOOP_API_KEY!,
   apiUrl:  process.env.AGENTLOOP_API_URL ?? "http://localhost:8000/api/v1",
 });
@@ -150,8 +150,8 @@ const openai = new OpenAI();
 export async function POST(req: NextRequest) {
   const { message } = await req.json();
 
-  const answer = await agentloop.session("chat-agent", async () => {
-    return agentloop.span("llm", "gpt-4o response", async (s) => {
+  const answer = await dottle.session("chat-agent", async () => {
+    return dottle.span("llm", "gpt-4o response", async (s) => {
       const res = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [{ role: "user", content: message }],
@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
 
 Add to `.env.local`:
 ```
-AGENTLOOP_API_KEY=alp_live_xxxxxxxx
+AGENTLOOP_API_KEY=dtl_live_xxxxxxxx
 AGENTLOOP_API_URL=http://localhost:8000/api/v1
 ```
 
@@ -180,25 +180,25 @@ AGENTLOOP_API_URL=http://localhost:8000/api/v1
 ## Express — middleware example
 
 ```ts
-// src/agentloop.ts — configure once
-import agentloop from "agentloop";
-agentloop.configure({
+// src/dottle.ts — configure once
+import dottle from "dottle";
+dottle.configure({
   apiKey:  process.env.AGENTLOOP_API_KEY!,
   apiUrl:  process.env.AGENTLOOP_API_URL!,
 });
-export default agentloop;
+export default dottle;
 
 // src/routes/agent.ts
 import express from "express";
-import agentloop from "../agentloop";
+import dottle from "../dottle";
 
 const router = express.Router();
 
 router.post("/run", async (req, res) => {
   const { query } = req.body;
 
-  const result = await agentloop.session("express-agent", async () => {
-    return agentloop.span("llm", "claude call", async (s) => {
+  const result = await dottle.session("express-agent", async () => {
+    return dottle.span("llm", "claude call", async (s) => {
       const response = await anthropic.messages.create({ ... });
       s.recordTokens(response.usage.input_tokens, response.usage.output_tokens, "claude-3-5-sonnet");
       return response.content[0].text;
@@ -216,7 +216,7 @@ router.post("/run", async (req, res) => {
 Any uncaught exception inside `session()` or `span()` is **automatically** recorded as an error. To record errors manually:
 
 ```ts
-await agentloop.span("tool", "send_email", async (s) => {
+await dottle.span("tool", "send_email", async (s) => {
   try {
     await sendEmail(to, body);
   } catch (err) {
@@ -231,7 +231,7 @@ await agentloop.span("tool", "send_email", async (s) => {
 ## SDK reference
 
 ```ts
-agentloop.configure(config)
+dottle.configure(config)
 
 // config shape:
 {
@@ -257,7 +257,7 @@ s.setError(message, errorType?)
 s.setAttribute(key, value)
 
 // Graceful shutdown — call before process.exit() if needed
-await agentloop.shutdown()
+await dottle.shutdown()
 ```
 
 ---
@@ -267,40 +267,40 @@ await agentloop.shutdown()
 No real LLM needed — paste and run:
 
 ```ts
-import agentloop from "agentloop";
+import dottle from "dottle";
 
-agentloop.configure({
-  apiKey:  "alp_live_xxxxxxxx",
+dottle.configure({
+  apiKey:  "dtl_live_xxxxxxxx",
   apiUrl:  "http://localhost:8000/api/v1",
   debug:   true,
 });
 
-await agentloop.session("js-smoke-test", async () => {
+await dottle.session("js-smoke-test", async () => {
 
-  await agentloop.span("llm", "fake-gpt-call", async (s) => {
+  await dottle.span("llm", "fake-gpt-call", async (s) => {
     await new Promise(r => setTimeout(r, 100));
     s.recordTokens(200, 80, "gpt-4o");
   });
 
-  await agentloop.span("tool", "fake-search", async () => {
+  await dottle.span("tool", "fake-search", async () => {
     await new Promise(r => setTimeout(r, 50));
   });
 
 });
 
 console.log("Done — check http://localhost:3000/sessions");
-await agentloop.shutdown();
+await dottle.shutdown();
 ```
 
 ---
 
 ## Works locally, no deployment needed
 
-Your agent code and the Agentloop stack are both on the same machine:
+Your agent code and the Dottle stack are both on the same machine:
 
 ```
 Your machine
-├── Agentloop stack  (Docker → localhost:8000)
+├── Dottle stack  (Docker → localhost:8000)
 └── Your Node.js app (calls localhost:8000)  ✓
 ```
 

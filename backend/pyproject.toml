@@ -3,10 +3,10 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-name = "agentloop-backend"
+name = "dottle-backend"
 version = "0.1.0"
-description = "Agentloop — AI Agent Observability Platform Backend"
-authors = ["Agentloop Team"]
+description = "Dottle — AI Agent Observability Platform Backend"
+authors = ["Dottle Team"]
 
 [tool.poetry.dependencies]
 python = "^3.11"

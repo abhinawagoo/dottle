@@ -1,6 +1,6 @@
 /**
  * PII redaction for prompt / response text.
- * Enable with: agentloop.configure({ ..., redactPii: true })
+ * Enable with: dottle.configure({ ..., redactPii: true })
  */
 
 const PATTERNS: Array<[RegExp, string]> = [
