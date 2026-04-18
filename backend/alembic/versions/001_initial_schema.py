@@ -15,12 +15,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Enable TimescaleDB extension if available (optional — not required for core functionality)
-    try:
-        op.execute("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;")
-    except Exception:
-        pass  # Standard PostgreSQL without TimescaleDB works fine
-
     # ── projects ──────────────────────────────────────────────────────────────
     op.create_table(
         "projects",
