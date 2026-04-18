@@ -1,11 +1,10 @@
 "use client";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Zap } from "lucide-react";
 
-// Google OAuth redirects here: /auth/callback?token=...
-export default function AuthCallbackPage() {
+function CallbackInner() {
   const router = useRouter();
   const params = useSearchParams();
   const { login } = useAuth();
@@ -19,6 +18,11 @@ export default function AuthCallbackPage() {
     }
   }, [params, login, router]);
 
+  return null;
+}
+
+// Google OAuth redirects here: /auth/callback?token=...
+export default function AuthCallbackPage() {
   return (
     <div className="min-h-screen bg-dark-bg flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
@@ -27,6 +31,9 @@ export default function AuthCallbackPage() {
         </div>
         <p className="text-sm text-ink-muted">Signing you in…</p>
       </div>
+      <Suspense>
+        <CallbackInner />
+      </Suspense>
     </div>
   );
 }
