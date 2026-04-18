@@ -5,7 +5,7 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000",
+    "startCommand": "python -c \"from app.main import app; print('=== import OK')\" 2>&1 && alembic upgrade head 2>&1 && uvicorn app.main:app --host 0.0.0.0 --port 8000 2>&1",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
