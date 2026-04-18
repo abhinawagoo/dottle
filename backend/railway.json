@@ -5,7 +5,7 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "alembic upgrade head && python start.py",
+    "startCommand": "alembic upgrade head 2>&1; echo \"=== alembic exit: $?\"; python start.py",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
