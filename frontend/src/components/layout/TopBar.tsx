@@ -50,7 +50,7 @@ export default function TopBar() {
     : user?.email?.[0]?.toUpperCase() ?? "?";
 
   return (
-    <header className="h-11 bg-[#0d0d0f] border-b border-dark-border flex items-center justify-between px-5 shrink-0 gap-3">
+    <header className="h-11 bg-dark-surface border-b border-dark-border flex items-center justify-between px-5 shrink-0 gap-3">
 
       {/* Left: Org switcher > Project switcher */}
       <div className="flex items-center gap-1 min-w-0">

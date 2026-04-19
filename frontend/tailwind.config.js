@@ -5,29 +5,29 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Brand accent — forest green
+        // Brand accent — mapped to CSS vars so they can be overridden per-theme
         brand: {
           400: "#6b9e5e",
           500: "#3a5c30",
           600: "#1c2419",
           700: "#141b10",
         },
-        // Dark surfaces — the main palette
+        // Surfaces — all mapped to CSS variables (auto light/dark switch)
         dark: {
-          bg:      "#09090b",   // page background
-          surface: "#111113",   // card / panel
-          raised:  "#18181b",   // elevated surface
-          border:  "#27272a",   // default border
-          divider: "#1f1f23",   // subtle divider
+          bg:      "var(--c-bg)",
+          surface: "var(--c-surface)",
+          raised:  "var(--c-raised)",
+          border:  "var(--c-border)",
+          divider: "var(--c-divider)",
         },
-        // Text
+        // Text — mapped to CSS variables
         ink: {
-          primary:   "#fafafa",  // headings, values
-          secondary: "#a1a1aa",  // labels, metadata
-          muted:     "#52525b",  // placeholders, very muted
-          dim:       "#3f3f46",  // disabled
+          primary:   "var(--c-ink-primary)",
+          secondary: "var(--c-ink-secondary)",
+          muted:     "var(--c-ink-muted)",
+          dim:       "var(--c-ink-dim)",
         },
-        // Status colors (muted for dark bg)
+        // Status colors
         status: {
           green:  "#22c55e",
           red:    "#ef4444",
@@ -41,8 +41,9 @@ module.exports = {
         mono: ["JetBrains Mono", "Fira Code", "ui-monospace", "monospace"],
       },
       boxShadow: {
-        card: "0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3)",
-        glow: "0 0 0 1px rgba(99,102,241,0.3)",
+        card:  "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)",
+        "card-dark": "0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3)",
+        glow:  "0 0 0 1px rgba(99,102,241,0.3)",
       },
     },
   },

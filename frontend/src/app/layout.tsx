@@ -10,7 +10,7 @@ import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { OrgProvider } from "@/lib/org-context";
 import { ProjectProvider } from "@/lib/project-context";
 
-const PUBLIC_PATHS = ["/login", "/register", "/auth/callback"];
+const PUBLIC_PATHS = ["/login", "/register", "/auth/callback", "/onboarding"];
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -37,7 +37,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
           <Sidebar />
           <div className="flex flex-col flex-1 overflow-hidden min-w-0">
             <TopBar />
-            <main className="flex-1 overflow-auto p-6 bg-dark-bg">
+            <main className="flex-1 overflow-auto p-6 bg-dark-bg transition-colors duration-200">
               {children}
             </main>
           </div>
@@ -53,10 +53,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   }));
 
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
         <title>Dottle — AI Agent Observability</title>
         <meta name="description" content="Catch agent drift before your users do" />
+        {/* Anti-flash: apply stored theme before paint */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('dottle_theme')||'dark';document.documentElement.classList.toggle('dark',t==='dark');})();` }} />
       </head>
       <body className="bg-dark-bg text-ink-primary">
         <QueryClientProvider client={queryClient}>
