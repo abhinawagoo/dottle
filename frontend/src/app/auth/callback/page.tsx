@@ -12,7 +12,13 @@ function CallbackInner() {
   useEffect(() => {
     const token = params.get("token");
     if (token) {
-      login(token).then(() => router.push("/"));
+      login(token).then((user: any) => {
+        if (user?.onboarding_completed === false) {
+          router.push("/onboarding");
+        } else {
+          router.push("/");
+        }
+      });
     } else {
       router.push("/login?error=oauth_failed");
     }

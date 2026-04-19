@@ -7,13 +7,14 @@ interface AuthUser {
   email: string;
   name: string | null;
   avatar_url: string | null;
+  onboarding_completed: boolean;
 }
 
 interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
   isLoading: boolean;
-  login: (token: string) => Promise<void>;
+  login: (token: string) => Promise<AuthUser | null>;
   logout: () => void;
 }
 
@@ -32,18 +33,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const login = useCallback(async (newToken: string) => {
+  const login = useCallback(async (newToken: string): Promise<AuthUser | null> => {
     localStorage.setItem(TOKEN_KEY, newToken);
     api.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
     setToken(newToken);
     try {
       const res = await api.get("/auth/me");
       setUser(res.data);
+      return res.data;
     } catch {
       localStorage.removeItem(TOKEN_KEY);
       delete api.defaults.headers.common["Authorization"];
       setToken(null);
       setUser(null);
+      return null;
     }
   }, []);
 

@@ -46,6 +46,13 @@ class AuthResponse(BaseModel):
     user: dict
 
 
+class OnboardingRequest(BaseModel):
+    product_description: str = ""
+    tracked_issues: list[str] = []
+    slack_webhook: str = ""
+    invited_emails: list[str] = []
+
+
 # ── Dependency: get current user from Bearer token ─────────────────────────────
 
 async def get_current_user(
@@ -191,6 +198,20 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
     return RedirectResponse(f"{settings.frontend_url}/auth/callback?token={token}")
 
 
+# ── Onboarding ─────────────────────────────────────────────────────────────────
+
+@router.post("/onboarding")
+async def complete_onboarding(
+    body: OnboardingRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    current_user.onboarding_data = body.model_dump()
+    current_user.onboarding_completed = True
+    await db.commit()
+    return {"ok": True}
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _user_dict(user: User) -> dict:
@@ -200,4 +221,5 @@ def _user_dict(user: User) -> dict:
         "name": user.name,
         "avatar_url": user.avatar_url,
         "created_at": user.created_at.isoformat(),
+        "onboarding_completed": user.onboarding_completed,
     }

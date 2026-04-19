@@ -31,7 +31,7 @@ export default function RegisterPage() {
       if (orgName.trim()) {
         await orgsApi.create(orgName.trim());
       }
-      router.push("/");
+      router.push("/onboarding");
     } catch (err: any) {
       setError(err?.response?.data?.detail || "Registration failed. Try again.");
     } finally {
