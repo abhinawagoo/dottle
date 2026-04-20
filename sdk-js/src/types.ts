@@ -1,8 +1,8 @@
 export interface DottleConfig {
   /** API key from your Dottle project settings */
   apiKey: string;
-  /** Backend URL e.g. http://localhost:8000/api/v1 */
-  apiUrl: string;
+  /** Backend URL — defaults to https://dottle-production.up.railway.app/api/v1 */
+  apiUrl?: string;
   /** Log flush confirmations to console (default: false) */
   debug?: boolean;
   /** No-op mode — useful in tests (default: false) */

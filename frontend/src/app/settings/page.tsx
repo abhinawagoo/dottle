@@ -362,12 +362,11 @@ export default function SettingsPage() {
 
                 <div className="mt-3 bg-dark-bg rounded-lg border border-dark-divider p-3">
                   <p className="text-[10px] text-ink-muted uppercase tracking-wider font-semibold mb-2.5">Quick Start</p>
-                  <pre className="text-[11px] font-mono text-ink-secondary leading-relaxed overflow-auto">{`import dottle
+                  <pre className="text-[11px] font-mono text-ink-secondary leading-relaxed overflow-auto">{`pip install dottle-sdk
 
-dottle.configure(
-    api_key="${p.api_key}",
-    api_url="http://localhost:8000/api/v1"
-)
+import dottle
+
+dottle.configure(api_key="${p.api_key}")
 
 with dottle.session("my_agent") as sid:
     with dottle.span("llm", "gpt-4o") as s:

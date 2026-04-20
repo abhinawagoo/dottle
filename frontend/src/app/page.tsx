@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { StatusBadge, LoopBadge } from "@/components/ui/Badge";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
+import ReactECharts from "echarts-for-react";
 import {
   DollarSign,
   Clock,
@@ -39,6 +40,12 @@ export default function DashboardPage() {
   const { data: sessions, isLoading: sessLoading } = useQuery({
     queryKey: ["sessions", PROJECT_ID],
     queryFn: () => sessionsApi.list({ project_id: PROJECT_ID, page_size: 10 }),
+    enabled: !!PROJECT_ID,
+  });
+
+  const { data: trendData } = useQuery({
+    queryKey: ["cost-over-time", PROJECT_ID, "day"],
+    queryFn: () => metricsApi.costOverTime(PROJECT_ID, "day"),
     enabled: !!PROJECT_ID,
   });
 
@@ -129,6 +136,73 @@ export default function DashboardPage() {
             </div>
           </Card>
         </div>
+      )}
+
+      {/* Sessions over time chart */}
+      {trendData && trendData.series.length > 1 && (
+        <Card title="Sessions & Cost" subtitle="Last 14 days">
+          <ReactECharts
+            option={{
+              backgroundColor: "transparent",
+              tooltip: {
+                trigger: "axis",
+                backgroundColor: "#18181b",
+                borderColor: "#27272a",
+                textStyle: { color: "#fafafa", fontSize: 12 },
+              },
+              legend: {
+                data: ["Sessions", "Cost ($)"],
+                textStyle: { color: "#71717a", fontSize: 11 },
+                right: 0,
+              },
+              xAxis: {
+                type: "category",
+                data: trendData.series.map((b) => b.bucket.slice(5, 10)),
+                axisLabel: { color: "#52525b", fontSize: 11 },
+                axisLine: { lineStyle: { color: "#27272a" } },
+                splitLine: { show: false },
+              },
+              yAxis: [
+                {
+                  type: "value",
+                  name: "Sessions",
+                  nameTextStyle: { color: "#52525b", fontSize: 10 },
+                  axisLabel: { color: "#52525b", fontSize: 10 },
+                  splitLine: { lineStyle: { color: "#1f1f23" } },
+                },
+                {
+                  type: "value",
+                  name: "Cost ($)",
+                  nameTextStyle: { color: "#52525b", fontSize: 10 },
+                  axisLabel: { color: "#52525b", fontSize: 10, formatter: (v: number) => `$${v.toFixed(3)}` },
+                  splitLine: { show: false },
+                },
+              ],
+              series: [
+                {
+                  name: "Sessions",
+                  type: "bar",
+                  data: trendData.series.map((b) => b.session_count),
+                  itemStyle: { color: "#3a5c9a", borderRadius: [3, 3, 0, 0] },
+                  barMaxWidth: 28,
+                },
+                {
+                  name: "Cost ($)",
+                  type: "line",
+                  yAxisIndex: 1,
+                  data: trendData.series.map((b) => parseFloat(b.cost_usd.toFixed(5))),
+                  lineStyle: { color: "#C8613A", width: 2 },
+                  itemStyle: { color: "#C8613A" },
+                  symbol: "circle",
+                  symbolSize: 4,
+                  smooth: true,
+                },
+              ],
+              grid: { left: 45, right: 55, bottom: 28, top: 40 },
+            }}
+            style={{ height: 200 }}
+          />
+        </Card>
       )}
 
       {/* Recent sessions */}

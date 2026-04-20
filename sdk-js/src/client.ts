@@ -4,13 +4,14 @@ import { maybeRedact } from "./redaction";
 interface BufferedSpan { sessionId: string; span: SpanData }
 
 export class DottleClient {
-  private config: Required<DottleConfig>;
+  private config: Required<Omit<DottleConfig, 'apiUrl'>> & { apiUrl: string };
   private buffer: BufferedSpan[] = [];
   private currentSessionId: string | null = null;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(config: DottleConfig) {
     this.config = {
+      apiUrl: "https://dottle-production.up.railway.app/api/v1",
       debug: false,
       disabled: false,
       flushIntervalMs: 2000,

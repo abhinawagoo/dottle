@@ -1,34 +1,40 @@
 {
-  "name": "dottle",
+  "name": "dottle-sdk",
   "version": "0.1.0",
   "description": "Dottle SDK for JavaScript/TypeScript — instrument your AI agents in 3 lines of code",
   "main": "dist/index.js",
-  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.mjs",
       "require": "./dist/index.js",
       "types": "./dist/index.d.ts"
     }
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch",
-    "test": "node test_salesmemory.mjs"
+    "dev": "tsc --watch"
   },
   "engines": { "node": ">=18.0.0" },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "keywords": [
     "ai",
     "agents",
     "observability",
+    "monitoring",
     "llm",
-    "tracing"
+    "tracing",
+    "openai",
+    "anthropic"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/abhinawagoo/dottle"
+  },
+  "homepage": "https://dottle.dev",
   "devDependencies": {
     "@types/node": "^25.6.0",
     "typescript": "^5.4.5"
