@@ -7,6 +7,7 @@ import {
   Slack, Bell, Users, Target, BookOpen, TrendingUp,
   AlertTriangle, ThumbsUp, ShieldOff, Brain, Flame, Frown, Ban, Laugh
 } from "lucide-react";
+import DottleMascot from "@/components/dottle-mascot";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -298,10 +299,8 @@ export default function OnboardingPage() {
   if (done) {
     return (
       <div className="min-h-screen bg-dark-bg flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="w-16 h-16 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center mx-auto">
-            <Check className="w-8 h-8 text-green-400" />
-          </div>
+        <div className="text-center space-y-2">
+          <DottleMascot variant="happy" size={260} />
           <h2 className="text-xl font-semibold text-ink-primary">You're all set!</h2>
           <p className="text-sm text-ink-muted">Taking you to your dashboard…</p>
         </div>

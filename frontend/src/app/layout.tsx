@@ -9,6 +9,7 @@ import TopBar from "@/components/layout/TopBar";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { OrgProvider } from "@/lib/org-context";
 import { ProjectProvider } from "@/lib/project-context";
+import DottleFavicon from "@/components/dottle-favicon";
 
 const PUBLIC_PATHS = ["/login", "/register", "/auth/callback", "/onboarding"];
 
@@ -61,6 +62,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('dottle_theme')||'dark';document.documentElement.classList.toggle('dark',t==='dark');})();` }} />
       </head>
       <body className="bg-dark-bg text-ink-primary">
+        <DottleFavicon />
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <AppShell>{children}</AppShell>

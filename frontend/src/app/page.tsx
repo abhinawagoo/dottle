@@ -17,6 +17,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useProject } from "@/lib/project-context";
+import DottleMascot from "@/components/dottle-mascot";
 
 function formatCost(v: number) {
   return `$${v.toFixed(4)}`;
@@ -150,18 +151,21 @@ export default function DashboardPage() {
             ))}
           </div>
         ) : !sessions?.items.length ? (
-          <EmptyState
-            icon={<Layers />}
-            title="No sessions yet"
-            description="Instrument your agent with the Dottle SDK to start tracking runs."
-            action={
-              <Link href="/settings">
-                <Button variant="secondary" size="sm">
-                  Get API key
-                </Button>
-              </Link>
-            }
-          />
+          <div className="flex flex-col items-center pt-2">
+            <DottleMascot variant="sleeping" size={200} />
+            <EmptyState
+              icon={<Layers />}
+              title="No sessions yet"
+              description="Instrument your agent with the Dottle SDK to start tracking runs."
+              action={
+                <Link href="/settings">
+                  <Button variant="secondary" size="sm">
+                    Get API key
+                  </Button>
+                </Link>
+              }
+            />
+          </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
