@@ -14,7 +14,6 @@ import {
   Radio, ShieldAlert, AlertCircle, Info, TrendingUp, Zap, Tag,
   User, FlaskConical, Sparkles, ExternalLink, MessageSquare,
 } from "lucide-react";
-import DottleMascot from "@/components/dottle-mascot";
 
 /* ── helpers ─────────────────────────────────────────────────────────────────── */
 function formatMs(ms: number | null) {
@@ -404,24 +403,6 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
           {/* ── Overview ── */}
           {tab === "overview" && (
             <div className="p-5 space-y-4">
-              {/* Mascot status indicator */}
-              <div className="flex justify-center">
-                <DottleMascot
-                  variant={
-                    session.status === "failed" || session.loop_detected
-                      ? "detecting"
-                      : session.status === "running" || session.status === "looping"
-                      ? "fixing"
-                      : issueCount > 0
-                      ? "detecting"
-                      : session.status === "completed"
-                      ? "happy"
-                      : "idle"
-                  }
-                  size={160}
-                />
-              </div>
-
               {/* Alerts */}
               {session.loop_detected && (
                 <div className="flex items-start gap-3 bg-amber-500/5 border border-amber-500/20 rounded-xl p-3">

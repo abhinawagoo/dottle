@@ -14,7 +14,6 @@ import {
   ArrowRight, Tag, User, Download,
 } from "lucide-react";
 import { useProject } from "@/lib/project-context";
-import DottleMascot from "@/components/dottle-mascot";
 
 function formatMs(ms: number | null): string {
   if (!ms) return "—";
@@ -206,19 +205,16 @@ export default function SessionsPage() {
               action={<Link href="/settings"><Button icon={<ArrowRight />}>Go to Settings</Button></Link>}
             />
           ) : !data?.items.length ? (
-            <div className="flex flex-col items-center pt-4">
-              {!hasFilters && <DottleMascot variant="sleeping" size={220} />}
-              <EmptyState
-                icon={<Layers />}
-                title="No sessions found"
-                description={hasFilters ? "Try clearing the filters." : "Instrument your agent to start tracking runs."}
-                action={
-                  hasFilters
-                    ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
-                    : <Link href="/settings"><Button variant="secondary">Get API key</Button></Link>
-                }
-              />
-            </div>
+            <EmptyState
+              icon={<Layers />}
+              title="No sessions found"
+              description={hasFilters ? "Try clearing the filters." : "Instrument your agent to start tracking runs."}
+              action={
+                hasFilters
+                  ? <Button variant="secondary" onClick={clearAll}>Clear filters</Button>
+                  : <Link href="/settings"><Button variant="secondary">Get API key</Button></Link>
+              }
+            />
           ) : (
             <>
               <table className="w-full text-sm">
