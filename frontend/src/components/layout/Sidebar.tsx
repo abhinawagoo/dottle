@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
-import { Activity, BarChart2, Bell, Layers, Settings, Zap, ShieldAlert, Sun, Moon, LogOut, HelpCircle } from "lucide-react";
+import { Activity, BarChart2, Bell, Layers, Settings, Zap, ShieldAlert, Sun, Moon, LogOut, HelpCircle, Users } from "lucide-react";
 import { clsx } from "clsx";
 import { useTheme } from "@/lib/use-theme";
 import { useAuth } from "@/lib/auth-context";
@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth-context";
 const NAV = [
   { href: "/",         label: "Dashboard",  icon: Activity   },
   { href: "/sessions", label: "Sessions",   icon: Layers     },
+  { href: "/users",    label: "Users",      icon: Users      },
   { href: "/issues",   label: "Issues",     icon: ShieldAlert},
   { href: "/metrics",  label: "Metrics",    icon: BarChart2  },
   { href: "/alerts",   label: "Alerts",     icon: Bell       },

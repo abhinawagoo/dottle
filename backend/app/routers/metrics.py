@@ -282,6 +282,66 @@ async def get_regression_report(
     return RegressionReport(baseline=baseline, comparison=comparison, delta=delta, verdict=verdict)
 
 
+@router.get("/users")
+async def get_user_analytics(
+    project_id: uuid.UUID,
+    from_: datetime | None = Query(None, alias="from"),
+    to: datetime | None = None,
+    limit: int = Query(50, le=200),
+    db: AsyncSession = Depends(get_db),
+):
+    """Per-user stats: sessions, cost, failure rate, last seen."""
+    from_ = from_ or _default_from()
+    to = to or datetime.now(timezone.utc)
+
+    conditions = [
+        AgentSession.project_id == project_id,
+        AgentSession.started_at >= from_,
+        AgentSession.started_at <= to,
+        (AgentSession.user_email.isnot(None)) | (AgentSession.user_id.isnot(None)),
+    ]
+
+    result = await db.execute(
+        select(
+            func.coalesce(AgentSession.user_email, AgentSession.user_id).label("user_key"),
+            AgentSession.user_email,
+            AgentSession.user_id,
+            func.count(AgentSession.id).label("session_count"),
+            func.coalesce(func.sum(AgentSession.total_cost_usd), 0).label("total_cost"),
+            func.count(AgentSession.id).filter(AgentSession.status == "failed").label("failed_count"),
+            func.count(AgentSession.id).filter(AgentSession.loop_detected == True).label("loop_count"),  # noqa: E712
+            func.coalesce(func.avg(AgentSession.duration_ms), 0).label("avg_latency_ms"),
+            func.max(AgentSession.started_at).label("last_seen"),
+        )
+        .where(and_(*conditions))
+        .group_by(
+            func.coalesce(AgentSession.user_email, AgentSession.user_id),
+            AgentSession.user_email,
+            AgentSession.user_id,
+        )
+        .order_by(func.count(AgentSession.id).desc())
+        .limit(limit)
+    )
+    rows = result.fetchall()
+
+    users = []
+    for row in rows:
+        total = row.session_count or 0
+        users.append({
+            "user_key": row.user_key,
+            "user_email": row.user_email,
+            "user_id": row.user_id,
+            "session_count": total,
+            "total_cost_usd": float(row.total_cost or 0),
+            "failure_rate_pct": round(row.failed_count / total * 100, 1) if total else 0.0,
+            "loop_rate_pct": round(row.loop_count / total * 100, 1) if total else 0.0,
+            "avg_latency_ms": float(row.avg_latency_ms or 0),
+            "last_seen": row.last_seen.isoformat() if row.last_seen else None,
+        })
+
+    return {"users": users, "total": len(users)}
+
+
 @router.get("/latency", response_model=LatencyDistributionResponse)
 async def get_latency_distribution(
     project_id: uuid.UUID,

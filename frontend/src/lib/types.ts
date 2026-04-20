@@ -177,6 +177,25 @@ export interface RegressionReport {
   verdict: "improved" | "regressed" | "neutral";
 }
 
+// ── User Analytics ────────────────────────────────────────────────────────────
+
+export interface UserStat {
+  user_key: string;
+  user_email: string | null;
+  user_id: string | null;
+  session_count: number;
+  total_cost_usd: number;
+  failure_rate_pct: number;
+  loop_rate_pct: number;
+  avg_latency_ms: number;
+  last_seen: string | null;
+}
+
+export interface UserAnalyticsResponse {
+  users: UserStat[];
+  total: number;
+}
+
 // ── Code Fixes ───────────────────────────────────────────────────────────────
 
 export interface GitHubConfig {

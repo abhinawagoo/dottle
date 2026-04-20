@@ -90,6 +90,9 @@ export const metricsApi = {
     from_b?: string;
     to_b?: string;
   }) => api.get("/metrics/regression", { params }).then(r => r.data),
+
+  users: (projectId: string, from?: string, to?: string): Promise<import("./types").UserAnalyticsResponse> =>
+    api.get("/metrics/users", { params: { project_id: projectId, from, to } }).then(r => r.data),
 };
 
 // ── Issues Board ──────────────────────────────────────────────────────────────
