@@ -2,22 +2,32 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
-import { Activity, BarChart2, Bell, Layers, Settings, Zap, ShieldAlert, Sun, Moon, LogOut, HelpCircle, Users } from "lucide-react";
+import {
+  Activity, BarChart2, Bell, Layers, Settings, Zap, ShieldAlert,
+  Sun, Moon, LogOut, HelpCircle, Users, Wrench, FlaskConical,
+  GitCompare, Search,
+} from "lucide-react";
 import { clsx } from "clsx";
 import { useTheme } from "@/lib/use-theme";
 import { useAuth } from "@/lib/auth-context";
 
 const NAV = [
-  { href: "/",         label: "Dashboard",  icon: Activity   },
-  { href: "/sessions", label: "Sessions",   icon: Layers     },
-  { href: "/users",    label: "Users",      icon: Users      },
-  { href: "/issues",   label: "Issues",     icon: ShieldAlert},
-  { href: "/metrics",  label: "Metrics",    icon: BarChart2  },
-  { href: "/alerts",   label: "Alerts",     icon: Bell       },
+  { href: "/",         label: "Dashboard",   icon: Activity    },
+  { href: "/sessions", label: "Sessions",    icon: Layers      },
+  { href: "/users",    label: "Users",       icon: Users       },
+  { href: "/issues",   label: "Issues",      icon: ShieldAlert },
+  { href: "/metrics",  label: "Metrics",     icon: BarChart2   },
+  { href: "/alerts",   label: "Alerts",      icon: Bell        },
+  { href: "/fix",      label: "Code Fixes",  icon: Wrench      },
 ];
 
-function NavItem({ href, label, icon: Icon, active }: {
-  href: string; label: string; icon: React.ElementType; active: boolean;
+const NAV_BOTTOM = [
+  { href: "/sessions/compare", label: "Compare",     icon: GitCompare    },
+  { href: "/experiments",      label: "Experiments", icon: FlaskConical, badge: "soon" as const },
+];
+
+function NavItem({ href, label, icon: Icon, active, badge }: {
+  href: string; label: string; icon: React.ElementType; active: boolean; badge?: string;
 }) {
   return (
     <Link
@@ -30,7 +40,12 @@ function NavItem({ href, label, icon: Icon, active }: {
       )}
     >
       <Icon className={clsx("w-4 h-4 shrink-0", active ? "text-brand-400" : "text-ink-dim")} />
-      {label}
+      <span className="flex-1">{label}</span>
+      {badge && (
+        <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-400 border border-brand-500/20">
+          {badge}
+        </span>
+      )}
     </Link>
   );
 }
@@ -61,11 +76,19 @@ export default function Sidebar() {
         <span className="text-[13px] font-semibold tracking-tight text-ink-primary">dottle</span>
       </div>
 
-      {/* Navigation */}
+      {/* Main navigation */}
       <nav className="flex-1 px-2 pt-3 space-y-0.5 overflow-y-auto">
         {NAV.map(({ href, label, icon }) => {
           const active = pathname === href || (href !== "/" && pathname.startsWith(href));
           return <NavItem key={href} href={href} label={label} icon={icon} active={active} />;
+        })}
+
+        {/* Divider */}
+        <div className="h-px bg-dark-divider my-2 mx-1" />
+
+        {NAV_BOTTOM.map(({ href, label, icon, badge }) => {
+          const active = pathname === href || (href !== "/" && pathname.startsWith(href));
+          return <NavItem key={href} href={href} label={label} icon={icon} active={active} badge={badge} />;
         })}
       </nav>
 
@@ -82,7 +105,7 @@ export default function Sidebar() {
         </a>
 
         {/* Settings */}
-        <NavItem href="/settings" label="Settings" icon={Settings} active={pathname === "/settings"} />
+        <NavItem href="/settings" label="Settings" icon={Settings} active={pathname.startsWith("/settings")} />
 
         {/* Theme toggle */}
         <button

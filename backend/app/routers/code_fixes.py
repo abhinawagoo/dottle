@@ -16,6 +16,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 
+import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -123,6 +124,37 @@ async def save_github_config(
 ):
     await _get_project(project_id, db)
     owner, repo = _parse_repo_url(body.repo_url)
+
+    # ── Validate token against GitHub API ────────────────────────────────────
+    gh_headers = {
+        "Authorization": f"token {body.access_token}",
+        "Accept": "application/vnd.github.v3+json",
+    }
+    async with httpx.AsyncClient(timeout=10) as client:
+        auth_resp = await client.get("https://api.github.com/user", headers=gh_headers)
+        if auth_resp.status_code == 401:
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid GitHub token — authentication failed. Make sure the token has the 'repo' scope.",
+            )
+        if auth_resp.status_code not in (200, 403):
+            raise HTTPException(
+                status_code=422,
+                detail=f"GitHub API returned {auth_resp.status_code}. Check the token and try again.",
+            )
+        repo_resp = await client.get(
+            f"https://api.github.com/repos/{owner}/{repo}", headers=gh_headers
+        )
+        if repo_resp.status_code == 404:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Repository {owner}/{repo} not found or the token lacks access.",
+            )
+        if repo_resp.status_code not in (200, 403):
+            raise HTTPException(
+                status_code=422,
+                detail=f"Could not verify repo access (GitHub {repo_resp.status_code}).",
+            )
 
     r = await db.execute(select(GitHubConfig).where(GitHubConfig.project_id == project_id))
     gh = r.scalar_one_or_none()
