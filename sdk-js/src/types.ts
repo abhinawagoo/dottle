@@ -51,6 +51,12 @@ export interface SessionOptions {
   tags?: string[];
   /** Agent version e.g. "1.0.0" */
   agentVersion?: string;
+  /** Git branch name — shown in session detail (e.g. "main", "feat/my-branch") */
+  gitBranch?: string;
+  /** Full git commit SHA — linked to GitHub/GitLab if gitRemote is set */
+  gitSha?: string;
+  /** Git remote URL — used to construct commit links (e.g. "https://github.com/owner/repo") */
+  gitRemote?: string;
 }
 
 /** Shape stored in AsyncLocalStorage per async context */

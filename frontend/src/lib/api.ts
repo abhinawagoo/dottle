@@ -64,6 +64,9 @@ export const sessionsApi = {
 
   get: (sessionId: string): Promise<SessionDetail> =>
     api.get(`/sessions/${sessionId}`).then(r => r.data),
+
+  diagnose: (sessionId: string): Promise<{ root_cause: string; suggestions: string[]; severity: string }> =>
+    api.post(`/sessions/${sessionId}/diagnose`).then(r => r.data),
 };
 
 // ── Metrics ──────────────────────────────────────────────────────────────────
@@ -109,7 +112,30 @@ export const issuesApi = {
 
   sessions: (issueType: string, params: { project_id: string; page?: number; page_size?: number }) =>
     api.get(`/issues/${issueType}/sessions`, { params }).then(r => r.data),
+
+  getWorkflow: (issueType: string, projectId: string): Promise<IssueWorkflow> =>
+    api.get(`/issues/${issueType}/workflow`, { params: { project_id: projectId } }).then(r => r.data),
+
+  updateWorkflow: (issueType: string, projectId: string, data: { status?: string; assignee?: string }) =>
+    api.patch(`/issues/${issueType}/workflow`, data, { params: { project_id: projectId } }).then(r => r.data),
+
+  addComment: (issueType: string, projectId: string, author: string, body: string): Promise<IssueWorkflowComment> =>
+    api.post(`/issues/${issueType}/workflow/comments`, { author, body }, { params: { project_id: projectId } }).then(r => r.data),
 };
+
+export interface IssueWorkflow {
+  status: "open" | "in_review" | "resolved";
+  assignee: string | null;
+  updated_at: string | null;
+  comments: IssueWorkflowComment[];
+}
+
+export interface IssueWorkflowComment {
+  id: string;
+  author: string;
+  body: string;
+  created_at: string;
+}
 
 // ── AI Session Chat ───────────────────────────────────────────────────────────
 // Returns a raw Response so the caller can consume the SSE stream directly

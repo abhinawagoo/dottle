@@ -19,6 +19,41 @@ from dottle.models import SpanPayload, SessionStartPayload, SessionEndPayload, S
 logger = logging.getLogger("dottle")
 
 
+def _get_git_info() -> dict[str, str]:
+    """Auto-detect git branch, SHA, and remote URL. Returns {} on any failure."""
+    try:
+        import subprocess
+        branch = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            stderr=subprocess.DEVNULL, timeout=2,
+        ).decode().strip()
+        sha = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            stderr=subprocess.DEVNULL, timeout=2,
+        ).decode().strip()
+        info: dict[str, str] = {
+            "git_branch": branch,
+            "git_sha": sha,
+            "git_sha_short": sha[:7],
+        }
+        try:
+            remote = subprocess.check_output(
+                ["git", "remote", "get-url", "origin"],
+                stderr=subprocess.DEVNULL, timeout=2,
+            ).decode().strip()
+            # Normalize SSH → HTTPS: git@github.com:owner/repo.git → https://github.com/owner/repo
+            if remote.startswith("git@"):
+                remote = "https://" + remote[4:].replace(":", "/", 1)
+            if remote.endswith(".git"):
+                remote = remote[:-4]
+            info["git_remote"] = remote
+        except Exception:
+            pass
+        return info
+    except Exception:
+        return {}
+
+
 class AgentLoopClient:
     def __init__(self, config: AgentLoopConfig | None = None):
         self._config = config or get_config()
@@ -48,12 +83,16 @@ class AgentLoopClient:
             import uuid
             return session_id or str(uuid.uuid4())
 
+        # Auto-detect git info; user-supplied metadata keys take precedence
+        git_info = _get_git_info()
+        merged_metadata = {**git_info, **(metadata or {})}
+
         payload = SessionStartPayload(
             session_id=session_id,
             agent_name=agent_name,
             external_id=external_id,
             started_at=datetime.now(timezone.utc),
-            metadata=metadata or {},
+            metadata=merged_metadata,
             user_id=user_id,
             user_email=user_email,
             tags=tags or [],

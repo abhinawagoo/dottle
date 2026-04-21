@@ -38,12 +38,21 @@ export class DottleClient {
       return id;
     }
 
+    // Merge git fields into metadata so they surface in the dashboard
+    const gitMeta: Record<string, string> = {};
+    if (options.gitBranch) gitMeta.git_branch = options.gitBranch;
+    if (options.gitSha) {
+      gitMeta.git_sha = options.gitSha;
+      gitMeta.git_sha_short = options.gitSha.slice(0, 7);
+    }
+    if (options.gitRemote) gitMeta.git_remote = options.gitRemote;
+
     const body = {
       agent_name: agentName,
       session_id: options.sessionId ?? null,
       external_id: options.externalId ?? null,
       started_at: new Date().toISOString(),
-      metadata: options.metadata ?? {},
+      metadata: { ...gitMeta, ...(options.metadata ?? {}) },
       user_id: options.userId ?? null,
       user_email: options.userEmail ?? null,
       tags: options.tags ?? [],

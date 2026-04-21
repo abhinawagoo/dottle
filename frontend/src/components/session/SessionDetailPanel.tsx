@@ -1,18 +1,19 @@
 "use client";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { sessionsApi } from "@/lib/api";
 import { Span, SessionIssue, IssueSeverity } from "@/lib/types";
 import { StatusBadge, LoopBadge, SpanTypeBadge } from "@/components/ui/Badge";
 import { StatCard } from "@/components/ui/Card";
 import SessionAIChat from "@/components/ui/SessionAIChat";
 import TraceTimeline from "@/components/timeline/TraceTimeline";
-import { format, formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 import Link from "next/link";
 import {
   AlertTriangle, XCircle, Layers, ChevronDown, ChevronRight,
   Radio, ShieldAlert, AlertCircle, Info, TrendingUp, Zap, Tag,
   User, FlaskConical, Sparkles, ExternalLink, MessageSquare,
+  Stethoscope, CheckCircle2, Loader2, ChevronUp, GitBranch, GitCommit,
 } from "lucide-react";
 
 /* ── helpers ─────────────────────────────────────────────────────────────────── */
@@ -31,6 +32,60 @@ const SEVERITY_CONFIG: Record<IssueSeverity, {
   low:      { icon: <TrendingUp className="w-4 h-4" />,   color: "text-sky-400",    bg: "bg-sky-500/5",    border: "border-sky-500/20" },
   info:     { icon: <Info className="w-4 h-4" />,         color: "text-ink-muted",  bg: "bg-dark-raised",  border: "border-dark-border" },
 };
+
+/* ── Diagnosis panel ─────────────────────────────────────────────────────────── */
+const DIAG_SEVERITY: Record<string, { color: string; bg: string; border: string }> = {
+  critical: { color: "text-red-400",    bg: "bg-red-500/5",    border: "border-red-500/20" },
+  high:     { color: "text-orange-400", bg: "bg-orange-500/5", border: "border-orange-500/20" },
+  medium:   { color: "text-amber-400",  bg: "bg-amber-500/5",  border: "border-amber-500/20" },
+  low:      { color: "text-sky-400",    bg: "bg-sky-500/5",    border: "border-sky-500/20" },
+};
+
+function DiagnosisPanel({ diagnosis }: {
+  diagnosis: { root_cause: string; suggestions: string[]; severity: string };
+}) {
+  const [open, setOpen] = useState(true);
+  const cfg = DIAG_SEVERITY[diagnosis.severity] ?? DIAG_SEVERITY.medium;
+
+  return (
+    <div className={`rounded-xl border ${cfg.border} ${cfg.bg} overflow-hidden`}>
+      <button
+        className="w-full flex items-center gap-2 px-4 py-3 text-left"
+        onClick={() => setOpen(o => !o)}
+      >
+        <Stethoscope className={`w-3.5 h-3.5 shrink-0 ${cfg.color}`} />
+        <span className={`text-xs font-semibold ${cfg.color}`}>AI Root Cause Analysis</span>
+        <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-full border font-medium uppercase tracking-wide ${cfg.color} ${cfg.border} bg-transparent`}>
+          {diagnosis.severity}
+        </span>
+        <span className="ml-auto text-ink-dim">
+          {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </span>
+      </button>
+      {open && (
+        <div className={`px-4 pb-4 border-t ${cfg.border} space-y-3`}>
+          <div className="pt-3">
+            <p className="text-[10px] font-semibold text-ink-dim uppercase tracking-widest mb-1.5">Root Cause</p>
+            <p className="text-xs text-ink-secondary leading-relaxed">{diagnosis.root_cause}</p>
+          </div>
+          {diagnosis.suggestions.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold text-ink-dim uppercase tracking-widest mb-1.5">Suggestions</p>
+              <ul className="space-y-1.5">
+                {diagnosis.suggestions.map((s, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-ink-secondary">
+                    <CheckCircle2 className="w-3 h-3 text-status-green shrink-0 mt-0.5" />
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ── Issue card ──────────────────────────────────────────────────────────────── */
 function IssueCard({ issue }: { issue: SessionIssue }) {
@@ -257,6 +312,10 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
   const [chatOpen, setChatOpen] = useState(false);
   const isLive = (status: string) => status === "running" || status === "looping";
 
+  const diagnoseMutation = useMutation({
+    mutationFn: () => sessionsApi.diagnose(sessionId),
+  });
+
   const { data: session, isLoading } = useQuery({
     queryKey: ["session", sessionId],
     queryFn: () => sessionsApi.get(sessionId),
@@ -344,6 +403,36 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
                 <Tag className="w-2.5 h-2.5" />{t}
               </span>
             ))}
+            {/* Git branch */}
+            {!!session.metadata?.git_branch && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono text-ink-secondary bg-dark-raised border border-dark-border">
+                <GitBranch className="w-2.5 h-2.5 text-ink-dim" />
+                {String(session.metadata.git_branch)}
+              </span>
+            )}
+            {/* Git commit SHA */}
+            {!!session.metadata?.git_sha_short && (() => {
+              const sha = String(session.metadata.git_sha_short);
+              const fullSha = String(session.metadata.git_sha ?? sha);
+              const remote = session.metadata.git_remote ? String(session.metadata.git_remote) : null;
+              const commitUrl = remote ? `${remote}/commit/${fullSha}` : null;
+              return commitUrl ? (
+                <a
+                  href={commitUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono text-brand-400 bg-dark-raised border border-dark-border hover:border-brand-500/40 transition-colors"
+                >
+                  <GitCommit className="w-2.5 h-2.5" />
+                  {sha}
+                </a>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono text-ink-dim bg-dark-raised border border-dark-border">
+                  <GitCommit className="w-2.5 h-2.5" />
+                  {sha}
+                </span>
+              );
+            })()}
           </div>
 
           {/* Action buttons */}
@@ -372,6 +461,25 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
             >
               <Sparkles className="w-3 h-3" /> Ask AI
             </button>
+            {(session.status === "failed" || session.loop_detected) && (
+              <button
+                onClick={() => {
+                  setTab("overview");
+                  diagnoseMutation.mutate();
+                }}
+                disabled={diagnoseMutation.isPending}
+                className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded border transition-all ${
+                  diagnoseMutation.isSuccess
+                    ? "bg-green-500/10 border-green-500/30 text-status-green"
+                    : "border-dark-border text-ink-muted hover:text-status-red hover:border-red-500/30"
+                }`}
+              >
+                {diagnoseMutation.isPending
+                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                  : <Stethoscope className="w-3 h-3" />}
+                {diagnoseMutation.isPending ? "Analyzing…" : "Diagnose"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -403,6 +511,19 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
           {/* ── Overview ── */}
           {tab === "overview" && (
             <div className="p-5 space-y-4">
+              {/* AI Diagnosis result */}
+              {diagnoseMutation.isSuccess && diagnoseMutation.data && (
+                <DiagnosisPanel diagnosis={diagnoseMutation.data} />
+              )}
+              {diagnoseMutation.isError && (
+                <div className="flex items-center gap-2 bg-red-500/5 border border-red-500/20 rounded-xl px-4 py-3">
+                  <XCircle className="w-4 h-4 text-red-400 shrink-0" />
+                  <p className="text-xs text-red-400">
+                    {(diagnoseMutation.error as Error)?.message ?? "Diagnosis failed. Check ANTHROPIC_API_KEY is set."}
+                  </p>
+                </div>
+              )}
+
               {/* Alerts */}
               {session.loop_detected && (
                 <div className="flex items-start gap-3 bg-amber-500/5 border border-amber-500/20 rounded-xl p-3">

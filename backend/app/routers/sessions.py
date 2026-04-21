@@ -601,6 +601,107 @@ async def ai_chat_session(
     )
 
 
+# ── One-shot AI Root Cause Analysis ──────────────────────────────────────────
+
+class DiagnoseResponse(BaseModel):
+    root_cause: str
+    suggestions: list[str]
+    severity: str  # "critical" | "high" | "medium" | "low"
+
+
+@router.post("/{session_id}/diagnose", response_model=DiagnoseResponse)
+async def diagnose_session(
+    session_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """One-shot AI root cause analysis. Returns structured root_cause + suggestions."""
+    from app.config import get_settings
+    settings = get_settings()
+
+    if not settings.anthropic_api_key:
+        raise HTTPException(
+            status_code=422,
+            detail="ANTHROPIC_API_KEY not configured. Add it to your .env file.",
+        )
+
+    result = await db.execute(
+        select(AgentSession)
+        .options(selectinload(AgentSession.spans))
+        .where(AgentSession.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    issues_result = await db.execute(
+        select(SessionIssue).where(SessionIssue.session_id == session_id)
+    )
+    issues = issues_result.scalars().all()
+
+    context = _build_session_context(session, session.spans, issues)
+
+    prompt = f"""Analyze this AI agent session and provide a concise root cause analysis.
+
+{context}
+
+Respond with ONLY a JSON object in this exact format (no markdown, no extra text):
+{{
+  "root_cause": "One clear sentence explaining the primary cause of failure or unexpected behavior",
+  "suggestions": [
+    "Specific actionable fix number 1",
+    "Specific actionable fix number 2",
+    "Specific actionable fix number 3"
+  ],
+  "severity": "critical"
+}}
+
+severity must be one of: critical, high, medium, low.
+Be specific — reference actual span names, error messages, and values from the context."""
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        resp = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            json={
+                "model": "claude-sonnet-4-6",
+                "max_tokens": 1024,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            headers={
+                "x-api-key": settings.anthropic_api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+        )
+
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Claude API error: {resp.text}")
+
+    data = resp.json()
+    raw_text = data["content"][0]["text"].strip()
+
+    # Strip optional markdown code fence if Claude adds one
+    if raw_text.startswith("```"):
+        raw_text = raw_text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+
+    try:
+        parsed = json.loads(raw_text)
+        return DiagnoseResponse(
+            root_cause=parsed.get("root_cause", "Unknown root cause"),
+            suggestions=parsed.get("suggestions", []),
+            severity=parsed.get("severity", "medium"),
+        )
+    except (json.JSONDecodeError, KeyError, ValueError):
+        return DiagnoseResponse(
+            root_cause=raw_text[:500] if raw_text else "Unable to analyze session",
+            suggestions=[
+                "Check the session spans for error details",
+                "Review the error message and stack trace",
+                "Enable debug logging in your agent",
+            ],
+            severity="medium",
+        )
+
+
 def _to_session_response(session: AgentSession) -> SessionResponse:
     return SessionResponse(
         id=session.id,

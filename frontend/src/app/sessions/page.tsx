@@ -11,7 +11,7 @@ import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import {
   Layers, ChevronLeft, ChevronRight, Settings, Search, X,
-  ArrowRight, Tag, User, Download,
+  ArrowRight, Tag, User, Download, GitCompare,
 } from "lucide-react";
 import { useProject } from "@/lib/project-context";
 
@@ -35,6 +35,17 @@ export default function SessionsPage() {
 
   // Drawer state
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  // Compare state
+  const [compareIds, setCompareIds] = useState<Set<string>>(new Set());
+
+  function toggleCompare(id: string) {
+    setCompareIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else if (next.size < 2) next.add(id);
+      return next;
+    });
+  }
 
   function exportSessions(fmt: "csv" | "json") {
     const params = new URLSearchParams({ project_id: PROJECT_ID, format: fmt, limit: "5000" });
@@ -117,6 +128,19 @@ export default function SessionsPage() {
                 >
                   <Download className="w-3 h-3" /> JSON
                 </button>
+                {compareIds.size === 2 && (
+                  <Link
+                    href={`/sessions/compare?a=${[...compareIds][0]}&b=${[...compareIds][1]}`}
+                    className="flex items-center gap-1 text-[11px] text-white bg-brand-600 hover:bg-brand-500 border border-brand-500 rounded px-2 py-1 transition-colors font-medium"
+                  >
+                    <GitCompare className="w-3 h-3" /> Compare (2)
+                  </Link>
+                )}
+                {compareIds.size > 0 && compareIds.size < 2 && (
+                  <span className="text-[11px] text-ink-dim border border-dark-border rounded px-2 py-1">
+                    Select {2 - compareIds.size} more to compare
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -220,6 +244,7 @@ export default function SessionsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-[11px] text-ink-muted border-b border-dark-divider">
+                    <th className="pb-2.5 pr-3 w-5" />
                     <th className="text-left pb-2.5 pr-4 font-semibold">Agent</th>
                     <th className="text-left pb-2.5 pr-4 font-semibold">Status</th>
                     <th className="text-left pb-2.5 pr-4 font-semibold">User</th>
@@ -237,8 +262,18 @@ export default function SessionsPage() {
                       onClick={() => setSelectedSessionId(s.id)}
                       className={`table-row-hover border-b border-dark-divider/40 last:border-0 cursor-pointer ${
                         selectedSessionId === s.id ? "bg-brand-500/5" : ""
-                      }`}
+                      } ${compareIds.has(s.id) ? "bg-brand-500/5" : ""}`}
                     >
+                      <td className="py-2.5 pr-3 w-5" onClick={e => { e.stopPropagation(); toggleCompare(s.id); }}>
+                        <input
+                          type="checkbox"
+                          checked={compareIds.has(s.id)}
+                          onChange={() => toggleCompare(s.id)}
+                          disabled={!compareIds.has(s.id) && compareIds.size >= 2}
+                          className="rounded border-dark-border bg-dark-raised accent-brand-500"
+                          onClick={e => e.stopPropagation()}
+                        />
+                      </td>
                       <td className="py-2.5 pr-4 max-w-[220px]">
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-2">

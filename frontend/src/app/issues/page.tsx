@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { issuesApi } from "@/lib/api";
 import { IssueGroup, IssueSeverity } from "@/lib/types";
 import { useProject } from "@/lib/project-context";
@@ -9,7 +9,8 @@ import Link from "next/link";
 import {
   ShieldAlert, XCircle, AlertTriangle, AlertCircle,
   TrendingUp, Info, Users, Layers, Clock, ChevronRight,
-  Zap, Wrench, ArrowLeft, ExternalLink,
+  Zap, Wrench, ArrowLeft, ExternalLink, MessageSquare, Send, User,
+  CheckCircle2, Circle, Eye,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/Card";
 import { SideDrawer } from "@/components/ui/SideDrawer";
@@ -117,6 +118,14 @@ function IssueCard({ group, onClick }: { group: IssueGroup; onClick: () => void 
   );
 }
 
+// ── Workflow status config ──────────────────────────────────────────────────────
+
+const WORKFLOW_STATUS = {
+  open:      { label: "Open",      icon: <Circle className="w-3 h-3" />,       color: "text-ink-muted",  bg: "bg-dark-raised border-dark-border" },
+  in_review: { label: "In Review", icon: <Eye className="w-3 h-3" />,          color: "text-amber-400",  bg: "bg-amber-500/10 border-amber-500/30" },
+  resolved:  { label: "Resolved",  icon: <CheckCircle2 className="w-3 h-3" />, color: "text-status-green", bg: "bg-green-500/10 border-green-500/30" },
+} as const;
+
 // ── Issue detail drawer content ────────────────────────────────────────────────
 
 function IssueDetailContent({
@@ -129,12 +138,42 @@ function IssueDetailContent({
   onSelectSession: (id: string) => void;
 }) {
   const label = ISSUE_TYPE_LABELS[issueType] ?? issueType.replace(/_/g, " ");
+  const qc = useQueryClient();
+  const commentRef = useRef<HTMLTextAreaElement>(null);
+  const [commentAuthor, setCommentAuthor] = useState("");
+  const [commentBody, setCommentBody] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["issue-sessions", issueType, projectId],
     queryFn: () => issuesApi.sessions(issueType, { project_id: projectId, page_size: 50 }),
     enabled: !!projectId,
   });
+
+  const { data: workflow } = useQuery({
+    queryKey: ["issue-workflow", issueType, projectId],
+    queryFn: () => issuesApi.getWorkflow(issueType, projectId),
+    enabled: !!projectId,
+  });
+
+  const updateStatus = useMutation({
+    mutationFn: (status: string) => issuesApi.updateWorkflow(issueType, projectId, { status }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["issue-workflow", issueType, projectId] }),
+  });
+
+  const updateAssignee = useMutation({
+    mutationFn: (assignee: string) => issuesApi.updateWorkflow(issueType, projectId, { assignee }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["issue-workflow", issueType, projectId] }),
+  });
+
+  const addComment = useMutation({
+    mutationFn: () => issuesApi.addComment(issueType, projectId, commentAuthor || "Anonymous", commentBody),
+    onSuccess: () => {
+      setCommentBody("");
+      qc.invalidateQueries({ queryKey: ["issue-workflow", issueType, projectId] });
+    },
+  });
+
+  const currentStatus = (workflow?.status ?? "open") as keyof typeof WORKFLOW_STATUS;
 
   return (
     <div className="p-5 space-y-5">
@@ -156,6 +195,108 @@ function IssueDetailContent({
           <Wrench className="w-3.5 h-3.5" />
           Fix with AI
         </Link>
+      </div>
+
+      {/* ── Workflow panel ── */}
+      <div className="bg-dark-raised border border-dark-border rounded-xl p-4 space-y-4">
+        <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-widest">Workflow</p>
+
+        {/* Status toggles */}
+        <div>
+          <p className="text-[10px] text-ink-dim mb-2">Status</p>
+          <div className="flex items-center gap-2">
+            {(Object.keys(WORKFLOW_STATUS) as Array<keyof typeof WORKFLOW_STATUS>).map(s => {
+              const cfg = WORKFLOW_STATUS[s];
+              const active = currentStatus === s;
+              return (
+                <button
+                  key={s}
+                  onClick={() => updateStatus.mutate(s)}
+                  disabled={updateStatus.isPending}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-medium transition-all ${
+                    active ? `${cfg.color} ${cfg.bg}` : "text-ink-dim border-dark-border hover:border-dark-divider"
+                  }`}
+                >
+                  {cfg.icon} {cfg.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Assignee */}
+        <div>
+          <p className="text-[10px] text-ink-dim mb-1.5">Assignee</p>
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-ink-dim pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Email or name…"
+                defaultValue={workflow?.assignee ?? ""}
+                className="input-dark pl-7 pr-3 w-full text-xs"
+                onBlur={(e) => updateAssignee.mutate(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && updateAssignee.mutate((e.target as HTMLInputElement).value)}
+              />
+            </div>
+            {workflow?.assignee && (
+              <button
+                onClick={() => updateAssignee.mutate("")}
+                className="text-[10px] text-ink-dim hover:text-ink-secondary px-2 py-1 border border-dark-border rounded transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Comment thread */}
+        <div>
+          <p className="text-[10px] text-ink-dim mb-2 flex items-center gap-1.5">
+            <MessageSquare className="w-3 h-3" />
+            Comments {workflow?.comments.length ? `(${workflow.comments.length})` : ""}
+          </p>
+          {workflow?.comments.length ? (
+            <div className="space-y-2 mb-3 max-h-48 overflow-y-auto">
+              {workflow.comments.map(c => (
+                <div key={c.id} className="bg-dark-bg border border-dark-border rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[11px] font-medium text-ink-secondary">{c.author}</span>
+                    <span className="text-[10px] text-ink-dim">{formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</span>
+                  </div>
+                  <p className="text-xs text-ink-secondary leading-relaxed whitespace-pre-wrap">{c.body}</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {/* Add comment */}
+          <div className="space-y-1.5">
+            <input
+              type="text"
+              placeholder="Your name…"
+              value={commentAuthor}
+              onChange={e => setCommentAuthor(e.target.value)}
+              className="input-dark w-full text-xs"
+            />
+            <div className="flex gap-2">
+              <textarea
+                ref={commentRef}
+                placeholder="Add a comment…"
+                value={commentBody}
+                onChange={e => setCommentBody(e.target.value)}
+                rows={2}
+                className="input-dark flex-1 text-xs resize-none"
+              />
+              <button
+                onClick={() => addComment.mutate()}
+                disabled={!commentBody.trim() || addComment.isPending}
+                className="flex items-center gap-1 px-3 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:opacity-40 text-white text-[11px] font-medium transition-colors self-end"
+              >
+                <Send className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Sessions table */}

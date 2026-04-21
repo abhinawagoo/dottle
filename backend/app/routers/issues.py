@@ -5,12 +5,15 @@ Turns per-session issues into project-level patterns.
 import uuid
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func, text, and_, distinct
+from fastapi import APIRouter, Depends, Query, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import select, func, text, and_, distinct, insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.issue import SessionIssue
+from app.models.issue_workflow import IssueWorkflow, IssueComment
 from app.models.session import AgentSession
 from app.schemas.metrics import IssueGroup, IssuesBoardResponse
 
@@ -182,4 +185,118 @@ async def get_issue_sessions(
             }
             for s in sessions
         ],
+    }
+
+
+# ── Issue Workflow ────────────────────────────────────────────────────────────
+
+class WorkflowUpdate(BaseModel):
+    status: str | None = None    # open | in_review | resolved
+    assignee: str | None = None  # email or name; pass "" to clear
+
+class CommentCreate(BaseModel):
+    author: str
+    body: str
+
+
+@router.get("/{issue_type}/workflow")
+async def get_workflow(
+    issue_type: str,
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get current workflow state + comment thread for an issue type."""
+    wf_result = await db.execute(
+        select(IssueWorkflow).where(
+            IssueWorkflow.project_id == project_id,
+            IssueWorkflow.issue_type == issue_type,
+        )
+    )
+    wf = wf_result.scalar_one_or_none()
+
+    comments_result = await db.execute(
+        select(IssueComment)
+        .where(
+            IssueComment.project_id == project_id,
+            IssueComment.issue_type == issue_type,
+        )
+        .order_by(IssueComment.created_at.asc())
+    )
+    comments = comments_result.scalars().all()
+
+    return {
+        "status": wf.status if wf else "open",
+        "assignee": wf.assignee if wf else None,
+        "updated_at": wf.updated_at.isoformat() if wf else None,
+        "comments": [
+            {
+                "id": str(c.id),
+                "author": c.author,
+                "body": c.body,
+                "created_at": c.created_at.isoformat(),
+            }
+            for c in comments
+        ],
+    }
+
+
+@router.patch("/{issue_type}/workflow")
+async def update_workflow(
+    issue_type: str,
+    project_id: uuid.UUID,
+    body: WorkflowUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Upsert the workflow status/assignee for an issue type."""
+    wf_result = await db.execute(
+        select(IssueWorkflow).where(
+            IssueWorkflow.project_id == project_id,
+            IssueWorkflow.issue_type == issue_type,
+        )
+    )
+    wf = wf_result.scalar_one_or_none()
+
+    if wf is None:
+        wf = IssueWorkflow(
+            project_id=project_id,
+            issue_type=issue_type,
+            status=body.status or "open",
+            assignee=body.assignee or None,
+        )
+        db.add(wf)
+    else:
+        if body.status is not None:
+            wf.status = body.status
+        if body.assignee is not None:
+            wf.assignee = body.assignee or None
+        wf.updated_at = datetime.now(timezone.utc)
+
+    await db.flush()
+    return {"status": wf.status, "assignee": wf.assignee}
+
+
+@router.post("/{issue_type}/workflow/comments")
+async def add_comment(
+    issue_type: str,
+    project_id: uuid.UUID,
+    body: CommentCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Add a comment to an issue type's thread."""
+    if not body.body.strip():
+        raise HTTPException(status_code=422, detail="Comment body cannot be empty")
+
+    comment = IssueComment(
+        project_id=project_id,
+        issue_type=issue_type,
+        author=body.author.strip() or "Anonymous",
+        body=body.body.strip(),
+    )
+    db.add(comment)
+    await db.flush()
+    return {
+        "id": str(comment.id),
+        "author": comment.author,
+        "body": comment.body,
+        "created_at": comment.created_at.isoformat(),
     }
