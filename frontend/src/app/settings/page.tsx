@@ -9,8 +9,8 @@ import { Card, EmptyState } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import {
   Copy, Check, Plus, Trash2, Key, FolderOpen, RefreshCw,
-  Building2, Users, UserPlus, GitBranch, Save, Github,
-  Bell, ShieldCheck, CreditCard, Settings, AlertCircle,
+  Building2, Users, UserPlus, Save, Github,
+  Bell, ShieldCheck, CreditCard, AlertCircle, Zap, Send,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -19,18 +19,20 @@ import { formatDistanceToNow } from "date-fns";
 type Section =
   | "projects"
   | "team"
+  | "slack"
   | "github"
   | "alerts"
   | "pii"
   | "billing";
 
-const SECTIONS: { id: Section; label: string; icon: React.ElementType; desc: string }[] = [
-  { id: "projects",  label: "API Keys",        icon: Key,         desc: "Projects and API keys"         },
-  { id: "team",      label: "Team",             icon: Users,       desc: "Members and invites"           },
-  { id: "github",    label: "GitHub",           icon: Github,      desc: "Repo connection for AI fixes"  },
-  { id: "alerts",    label: "Alerts",           icon: Bell,        desc: "Slack and email notifications" },
-  { id: "pii",       label: "PII Redaction",    icon: ShieldCheck, desc: "Scrub sensitive data"         },
-  { id: "billing",   label: "Billing",          icon: CreditCard,  desc: "Plan and usage"                },
+const SECTIONS: { id: Section; label: string; icon: React.ElementType }[] = [
+  { id: "projects", label: "API Keys",     icon: Key         },
+  { id: "team",     label: "Team",         icon: Users       },
+  { id: "slack",    label: "Slack",        icon: Zap         },
+  { id: "github",   label: "GitHub",       icon: Github      },
+  { id: "alerts",   label: "Alerts",       icon: Bell        },
+  { id: "pii",      label: "PII Redaction",icon: ShieldCheck },
+  { id: "billing",  label: "Billing",      icon: CreditCard  },
 ];
 
 // ── GitHub Integration section ────────────────────────────────────────────────
@@ -392,6 +394,143 @@ function TeamSection() {
   );
 }
 
+// ── Slack Integration section ─────────────────────────────────────────────────
+
+function SlackSection() {
+  const qc = useQueryClient();
+  const { selectedProject } = useProject();
+  const PROJECT_ID = selectedProject?.id ?? "";
+
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [channelName, setChannelName] = useState("");
+  const [testSent, setTestSent] = useState(false);
+
+  const { data: slackConfig, isError: notConfigured } = useQuery({
+    queryKey: ["slack-config", PROJECT_ID],
+    queryFn: () => projectsApi.getSlack(PROJECT_ID),
+    enabled: !!PROJECT_ID,
+    retry: false,
+  });
+
+  const save = useMutation({
+    mutationFn: () => projectsApi.saveSlack(PROJECT_ID, webhookUrl, channelName || undefined),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["slack-config", PROJECT_ID] });
+      setWebhookUrl("");
+      setChannelName("");
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: () => projectsApi.deleteSlack(PROJECT_ID),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["slack-config", PROJECT_ID] }),
+  });
+
+  const test = useMutation({
+    mutationFn: () => projectsApi.testSlack(PROJECT_ID),
+    onSuccess: () => { setTestSent(true); setTimeout(() => setTestSent(false), 3000); },
+  });
+
+  if (!PROJECT_ID) {
+    return <p className="text-sm text-ink-muted">Select a project first.</p>;
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-sm font-semibold text-ink-primary">Slack Integration</h2>
+        <p className="text-xs text-ink-muted mt-0.5">
+          Connect a Slack channel to receive alert notifications when your agents misbehave.
+        </p>
+      </div>
+
+      {/* Connected status */}
+      {slackConfig && (
+        <div className="flex items-center justify-between p-3 rounded-xl bg-green-500/5 border border-green-500/20">
+          <div className="flex items-center gap-2.5">
+            <Check className="w-4 h-4 text-green-400 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-green-300">
+                Slack connected{slackConfig.channel_name ? ` · #${slackConfig.channel_name}` : ""}
+              </p>
+              <p className="text-[10px] text-ink-dim mt-0.5 font-mono">{slackConfig.webhook_url_masked}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => test.mutate()}
+              disabled={test.isPending}
+              className="text-[11px] px-2.5 py-1 rounded-lg bg-dark-raised border border-dark-border text-ink-muted hover:text-ink-secondary transition-colors"
+            >
+              {testSent ? <span className="text-green-400">Sent ✓</span> : test.isPending ? "Sending…" : "Test"}
+            </button>
+            <button onClick={() => remove.mutate()} className="text-ink-dim hover:text-status-red transition-colors p-1.5 rounded-lg hover:bg-status-red/10">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {save.isError && (
+        <div className="flex items-start gap-2 p-3 bg-red-500/5 border border-red-500/20 rounded-xl">
+          <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+          <p className="text-xs text-red-400">
+            {(save.error as Error)?.message ?? "Failed to connect. Check the webhook URL."}
+          </p>
+        </div>
+      )}
+
+      {/* Form */}
+      <div className="space-y-3">
+        <div>
+          <label className="form-label">Slack Incoming Webhook URL</label>
+          <input
+            className="input-dark"
+            placeholder="https://hooks.slack.com/services/T.../B.../..."
+            value={webhookUrl}
+            onChange={e => setWebhookUrl(e.target.value)}
+          />
+          <p className="text-[10px] text-ink-dim mt-1.5">
+            Create at <span className="text-ink-muted">api.slack.com → Your Apps → Incoming Webhooks</span>. Dottle will send a verification message on save.
+          </p>
+        </div>
+        <div>
+          <label className="form-label">Channel name (optional)</label>
+          <input
+            className="input-dark"
+            placeholder="#alerts"
+            value={channelName}
+            onChange={e => setChannelName(e.target.value)}
+          />
+          <p className="text-[10px] text-ink-dim mt-1">For display only — routing is set in the Slack app.</p>
+        </div>
+        <Button
+          onClick={() => save.mutate()}
+          disabled={!webhookUrl}
+          loading={save.isPending}
+          icon={<Send />}
+        >
+          {slackConfig ? "Update Webhook" : "Connect Slack"}
+        </Button>
+      </div>
+
+      {/* How it works */}
+      <div className="border border-dark-border rounded-xl p-4 bg-dark-raised space-y-2">
+        <p className="text-xs font-semibold text-ink-secondary">How alerts work</p>
+        <ul className="text-[11px] text-ink-muted space-y-1.5 list-disc list-inside">
+          <li>Go to <span className="text-ink-secondary">Alerts</span> to create alert rules (e.g. loop rate &gt; 5%)</li>
+          <li>When a rule fires, Dottle posts a message to this Slack channel</li>
+          <li>Messages include metric value, project name, and a link to the dashboard</li>
+          <li>Alerts have a 30-minute cooldown so you don't get spammed</li>
+        </ul>
+        <a href="/alerts" className="inline-flex items-center gap-1 text-[11px] text-brand-400 hover:underline mt-1">
+          <Bell className="w-3 h-3" /> Manage alert rules →
+        </a>
+      </div>
+    </div>
+  );
+}
+
 // ── Alerts section (placeholder) ──────────────────────────────────────────────
 
 function AlertsSection() {
@@ -476,27 +615,27 @@ export default function SettingsPage() {
     <div className="flex h-full max-w-5xl mx-auto gap-0">
 
       {/* Settings sidebar */}
-      <aside className="w-[200px] shrink-0 border-r border-dark-border pr-0">
-        <div className="py-1">
-          <p className="text-[10px] font-semibold text-ink-dim uppercase tracking-widest px-3 py-2">Settings</p>
+      <aside className="w-[180px] shrink-0 border-r border-dark-border">
+        <div className="pt-1 pb-2">
+          <p className="text-[9px] font-bold text-ink-dim uppercase tracking-widest px-3 pt-3 pb-2">Settings</p>
           {SECTIONS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setActiveSection(id)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all text-left ${
+              className={`w-full flex items-center gap-2 px-3 py-1.5 text-[12px] font-medium transition-all text-left rounded-md mx-0 ${
                 activeSection === id
                   ? "bg-dark-raised text-ink-primary"
                   : "text-ink-muted hover:text-ink-secondary hover:bg-dark-raised/50"
               }`}
             >
-              <Icon className={`w-4 h-4 shrink-0 ${activeSection === id ? "text-brand-400" : "text-ink-dim"}`} />
+              <Icon className={`w-3.5 h-3.5 shrink-0 ${activeSection === id ? "text-brand-400" : "text-ink-dim"}`} />
               {label}
             </button>
           ))}
         </div>
 
         {/* User info at bottom of settings sidebar */}
-        <div className="mt-auto border-t border-dark-border pt-3 px-3 pb-2">
+        <div className="border-t border-dark-border pt-2.5 px-3 pb-2 mt-auto">
           <p className="text-[10px] text-ink-dim truncate">{user?.email}</p>
         </div>
       </aside>
@@ -506,6 +645,7 @@ export default function SettingsPage() {
         <div className="max-w-xl space-y-5">
           {activeSection === "projects" && <ProjectsSection />}
           {activeSection === "team"     && <TeamSection />}
+          {activeSection === "slack"    && <SlackSection />}
           {activeSection === "github"   && <GitHubSection />}
           {activeSection === "alerts"   && <AlertsSection />}
           {activeSection === "pii"      && <PIISection />}

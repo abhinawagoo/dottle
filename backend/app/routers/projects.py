@@ -2,6 +2,7 @@ import secrets
 import uuid
 from datetime import datetime, timezone
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select, and_
@@ -126,3 +127,117 @@ async def regenerate_api_key(
     project.api_key = f"dtl_live_{secrets.token_urlsafe(32)}"
     await db.flush()
     return project
+
+
+# ── Slack Integration ─────────────────────────────────────────────────────────
+
+class SlackConfigInput(BaseModel):
+    webhook_url: str
+    channel_name: str | None = None
+
+
+class SlackConfigResponse(BaseModel):
+    project_id: uuid.UUID
+    webhook_url_masked: str   # show only last 8 chars of the token part
+    channel_name: str | None
+
+
+async def _get_project_with_access(project_id: uuid.UUID, user: User, db: AsyncSession) -> Project:
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.org_id:
+        await _require_org_access(project.org_id, user, db)
+    return project
+
+
+def _mask_webhook(url: str) -> str:
+    """Show only the last 8 chars so users can verify which webhook is saved."""
+    return "https://hooks.slack.com/…" + url[-8:] if len(url) > 8 else "****"
+
+
+@router.get("/{project_id}/slack", response_model=SlackConfigResponse)
+async def get_slack_config(
+    project_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    project = await _get_project_with_access(project_id, current_user, db)
+    if not project.slack_webhook_url:
+        raise HTTPException(status_code=404, detail="No Slack integration configured")
+    return SlackConfigResponse(
+        project_id=project.id,
+        webhook_url_masked=_mask_webhook(project.slack_webhook_url),
+        channel_name=project.slack_channel_name,
+    )
+
+
+@router.put("/{project_id}/slack", response_model=SlackConfigResponse)
+async def save_slack_config(
+    project_id: uuid.UUID,
+    body: SlackConfigInput,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    project = await _get_project_with_access(project_id, current_user, db)
+
+    # Validate webhook by sending a test payload
+    if not body.webhook_url.startswith("https://hooks.slack.com/"):
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid webhook URL — must start with https://hooks.slack.com/"
+        )
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post(body.webhook_url, json={"text": "✅ Dottle connected to this Slack channel."})
+        if resp.status_code != 200 or resp.text != "ok":
+            raise HTTPException(
+                status_code=422,
+                detail=f"Slack rejected the webhook (HTTP {resp.status_code}). Check the URL and try again."
+            )
+
+    project.slack_webhook_url = body.webhook_url
+    project.slack_channel_name = body.channel_name
+    await db.commit()
+    return SlackConfigResponse(
+        project_id=project.id,
+        webhook_url_masked=_mask_webhook(project.slack_webhook_url),
+        channel_name=project.slack_channel_name,
+    )
+
+
+@router.delete("/{project_id}/slack", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_slack_config(
+    project_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    project = await _get_project_with_access(project_id, current_user, db)
+    project.slack_webhook_url = None
+    project.slack_channel_name = None
+    await db.commit()
+
+
+@router.post("/{project_id}/slack/test", status_code=200)
+async def test_slack_config(
+    project_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Send a test alert to the configured Slack webhook."""
+    project = await _get_project_with_access(project_id, current_user, db)
+    if not project.slack_webhook_url:
+        raise HTTPException(status_code=422, detail="No Slack webhook configured")
+
+    payload = {
+        "blocks": [
+            {"type": "header", "text": {"type": "plain_text", "text": "🚨 Dottle Alert — Test Message"}},
+            {"type": "section", "text": {"type": "mrkdwn", "text": f"*Project:* {project.name}\n\nThis is a test notification from Dottle. Your Slack integration is working correctly."}},
+            {"type": "context", "elements": [{"type": "mrkdwn", "text": "Sent by Dottle · AI Agent Observability"}]}
+        ]
+    }
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post(project.slack_webhook_url, json=payload)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=500, detail="Failed to send test message to Slack")
+    return {"ok": True, "message": "Test message sent to Slack"}

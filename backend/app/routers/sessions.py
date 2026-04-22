@@ -80,11 +80,22 @@ async def list_sessions(
     )
     sessions = result.scalars().all()
 
+    # Fetch issue counts for all sessions in one query
+    session_ids = [s.id for s in sessions]
+    issue_counts: dict[uuid.UUID, int] = {}
+    if session_ids:
+        ic_result = await db.execute(
+            select(SessionIssue.session_id, func.count(SessionIssue.id).label("cnt"))
+            .where(SessionIssue.session_id.in_(session_ids))
+            .group_by(SessionIssue.session_id)
+        )
+        issue_counts = {row.session_id: row.cnt for row in ic_result}
+
     return SessionListResponse(
         total=total,
         page=page,
         page_size=page_size,
-        items=[_to_session_response(s) for s in sessions],
+        items=[_to_session_response(s, issue_counts.get(s.id, 0)) for s in sessions],
     )
 
 
@@ -702,7 +713,7 @@ Be specific — reference actual span names, error messages, and values from the
         )
 
 
-def _to_session_response(session: AgentSession) -> SessionResponse:
+def _to_session_response(session: AgentSession, issue_count: int = 0) -> SessionResponse:
     return SessionResponse(
         id=session.id,
         project_id=session.project_id,
@@ -727,4 +738,5 @@ def _to_session_response(session: AgentSession) -> SessionResponse:
         user_email=session.user_email,
         tags=session.tags or [],
         agent_version=session.agent_version,
+        issue_count=issue_count,
     )

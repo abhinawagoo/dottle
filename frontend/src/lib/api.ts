@@ -42,6 +42,16 @@ export const projectsApi = {
   delete: (id: string): Promise<void> => api.delete(`/projects/${id}`).then(r => r.data),
   regenerateKey: (id: string): Promise<Project> =>
     api.post(`/projects/${id}/regenerate-key`).then(r => r.data),
+
+  // Slack integration
+  getSlack: (projectId: string) =>
+    api.get(`/projects/${projectId}/slack`).then(r => r.data as { project_id: string; webhook_url_masked: string; channel_name: string | null }),
+  saveSlack: (projectId: string, webhookUrl: string, channelName?: string) =>
+    api.put(`/projects/${projectId}/slack`, { webhook_url: webhookUrl, channel_name: channelName || null }).then(r => r.data),
+  deleteSlack: (projectId: string) =>
+    api.delete(`/projects/${projectId}/slack`).then(r => r.data),
+  testSlack: (projectId: string) =>
+    api.post(`/projects/${projectId}/slack/test`).then(r => r.data),
 };
 
 // ── Sessions ─────────────────────────────────────────────────────────────────

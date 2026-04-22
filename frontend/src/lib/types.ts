@@ -1,4 +1,4 @@
-export type SessionStatus = "running" | "completed" | "failed" | "looping" | "timeout";
+export type SessionStatus = "running" | "completed" | "failed" | "looping" | "timeout" | "timed_out";
 export type SpanType = "llm" | "tool" | "retrieval" | "agent" | "custom";
 export type SpanStatus = "ok" | "error" | "timeout";
 
@@ -34,6 +34,7 @@ export interface Session {
   user_email: string | null;
   tags: string[];
   agent_version: string | null;
+  issue_count: number;
 }
 
 export interface Span {

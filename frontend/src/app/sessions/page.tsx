@@ -187,6 +187,7 @@ export default function SessionsPage() {
               <option value="completed">Completed</option>
               <option value="failed">Failed</option>
               <option value="looping">Looping</option>
+              <option value="timed_out">Timed out</option>
             </select>
             <label className="flex items-center gap-2 text-xs text-ink-muted cursor-pointer select-none whitespace-nowrap">
               <input
@@ -295,7 +296,16 @@ export default function SessionsPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="py-2.5 pr-4"><StatusBadge status={s.status} /></td>
+                      <td className="py-2.5 pr-4">
+                        <div className="flex items-center gap-1.5">
+                          <StatusBadge status={s.status} />
+                          {s.issue_count > 0 && (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                              {s.issue_count} issue{s.issue_count !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="py-2.5 pr-4 text-[11px] text-ink-muted max-w-[140px]">
                         {s.user_email ? (
                           <span title={s.user_email} className="truncate block">{s.user_email}</span>

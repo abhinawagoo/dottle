@@ -149,6 +149,7 @@ async def _compute_metric(
 
 
 async def _fire_alert(rule: AlertRule, metric_value: float, db: AsyncSession) -> None:
+    from app.models.project import Project
     now = datetime.now(timezone.utc)
     message = (
         f"Alert *{rule.name}* fired.\n"
@@ -164,6 +165,19 @@ async def _fire_alert(rule: AlertRule, metric_value: float, db: AsyncSession) ->
         message=message,
         metric_value=metric_value,
     )
+
+    # Also notify via project-level Slack webhook (if configured and not already using slack rule)
+    if rule.channel != "slack":
+        proj_result = await db.execute(select(Project).where(Project.id == rule.project_id))
+        project = proj_result.scalar_one_or_none()
+        if project and project.slack_webhook_url:
+            await dispatch_alert(
+                channel="slack",
+                destination=project.slack_webhook_url,
+                rule_name=rule.name,
+                message=message,
+                metric_value=metric_value,
+            )
 
     event = AlertEvent(
         id=uuid.uuid4(),

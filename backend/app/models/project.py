@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
+import sqlalchemy as sa
 from sqlalchemy import String, DateTime, ForeignKey, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -28,6 +29,9 @@ class Project(Base):
         server_default=text("now()"),
         nullable=False,
     )
+
+    slack_webhook_url: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    slack_channel_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     org: Mapped["Organization | None"] = relationship("Organization", back_populates="projects")
     sessions: Mapped[list["AgentSession"]] = relationship(

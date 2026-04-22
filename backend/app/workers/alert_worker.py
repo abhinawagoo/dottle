@@ -24,6 +24,7 @@ async def _run_alert_check():
 
 
 def start_alert_worker(interval_seconds: int = 60):
+    from app.workers.stale_session_reaper import start_reaper
     scheduler.add_job(
         _run_alert_check,
         trigger="interval",
@@ -32,6 +33,7 @@ def start_alert_worker(interval_seconds: int = 60):
         replace_existing=True,
         max_instances=1,
     )
+    start_reaper(scheduler)
     scheduler.start()
     logger.info(f"Alert worker started (interval={interval_seconds}s)")
 

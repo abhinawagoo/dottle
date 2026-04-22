@@ -7,6 +7,7 @@ const STATUS_STYLES: Record<string, string> = {
   failed:    "bg-red-500/10 text-red-400 border-red-500/20",
   looping:   "bg-amber-500/10 text-amber-400 border-amber-500/20",
   timeout:   "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  timed_out: "bg-orange-500/10 text-orange-400 border-orange-500/20",
   ok:        "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   error:     "bg-red-500/10 text-red-400 border-red-500/20",
 };

@@ -64,6 +64,7 @@ class SessionResponse(BaseModel):
     user_email: str | None = None
     tags: list[str] = []
     agent_version: str | None = None
+    issue_count: int = 0
 
     model_config = {"from_attributes": True}
 
