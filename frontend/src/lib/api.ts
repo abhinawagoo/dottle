@@ -45,13 +45,16 @@ export const projectsApi = {
 
   // Slack integration
   getSlack: (projectId: string) =>
-    api.get(`/projects/${projectId}/slack`).then(r => r.data as { project_id: string; webhook_url_masked: string; channel_name: string | null }),
-  saveSlack: (projectId: string, webhookUrl: string, channelName?: string) =>
-    api.put(`/projects/${projectId}/slack`, { webhook_url: webhookUrl, channel_name: channelName || null }).then(r => r.data),
+    api.get(`/projects/${projectId}/slack`).then(r => r.data as { project_id: string; webhook_url_masked: string; channel_name: string | null; workspace_name: string | null }),
   deleteSlack: (projectId: string) =>
     api.delete(`/projects/${projectId}/slack`).then(r => r.data),
   testSlack: (projectId: string) =>
     api.post(`/projects/${projectId}/slack/test`).then(r => r.data),
+  // Returns the backend URL to redirect the browser to for OAuth
+  slackOAuthUrl: (projectId: string) => {
+    const base = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1");
+    return `${base}/slack/oauth/start?project_id=${projectId}`;
+  },
 };
 
 // ── Sessions ─────────────────────────────────────────────────────────────────

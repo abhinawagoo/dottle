@@ -140,6 +140,7 @@ class SlackConfigResponse(BaseModel):
     project_id: uuid.UUID
     webhook_url_masked: str   # show only last 8 chars of the token part
     channel_name: str | None
+    workspace_name: str | None
 
 
 async def _get_project_with_access(project_id: uuid.UUID, user: User, db: AsyncSession) -> Project:
@@ -170,6 +171,7 @@ async def get_slack_config(
         project_id=project.id,
         webhook_url_masked=_mask_webhook(project.slack_webhook_url),
         channel_name=project.slack_channel_name,
+        workspace_name=project.slack_workspace_name,
     )
 
 
@@ -203,6 +205,7 @@ async def save_slack_config(
         project_id=project.id,
         webhook_url_masked=_mask_webhook(project.slack_webhook_url),
         channel_name=project.slack_channel_name,
+        workspace_name=project.slack_workspace_name,
     )
 
 
@@ -215,6 +218,7 @@ async def delete_slack_config(
     project = await _get_project_with_access(project_id, current_user, db)
     project.slack_webhook_url = None
     project.slack_channel_name = None
+    project.slack_workspace_name = None
     await db.commit()
 
 

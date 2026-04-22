@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { projectsApi, orgsApi, codeFixApi } from "@/lib/api";
 import { useOrg } from "@/lib/org-context";
 import { useAuth } from "@/lib/auth-context";
@@ -400,26 +401,25 @@ function SlackSection() {
   const qc = useQueryClient();
   const { selectedProject } = useProject();
   const PROJECT_ID = selectedProject?.id ?? "";
+  const searchParams = useSearchParams();
 
-  const [webhookUrl, setWebhookUrl] = useState("");
-  const [channelName, setChannelName] = useState("");
   const [testSent, setTestSent] = useState(false);
+  const [supportChannel, setSupportChannel] = useState(false);
 
-  const { data: slackConfig, isError: notConfigured } = useQuery({
+  // Pick up ?slack=connected from OAuth callback redirect
+  const oauthStatus = searchParams.get("slack");
+
+  const { data: slackConfig, refetch } = useQuery({
     queryKey: ["slack-config", PROJECT_ID],
     queryFn: () => projectsApi.getSlack(PROJECT_ID),
     enabled: !!PROJECT_ID,
     retry: false,
   });
 
-  const save = useMutation({
-    mutationFn: () => projectsApi.saveSlack(PROJECT_ID, webhookUrl, channelName || undefined),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["slack-config", PROJECT_ID] });
-      setWebhookUrl("");
-      setChannelName("");
-    },
-  });
+  // Refresh after OAuth redirect
+  if (oauthStatus === "connected" && PROJECT_ID) {
+    refetch();
+  }
 
   const remove = useMutation({
     mutationFn: () => projectsApi.deleteSlack(PROJECT_ID),
@@ -435,97 +435,129 @@ function SlackSection() {
     return <p className="text-sm text-ink-muted">Select a project first.</p>;
   }
 
+  const oauthUrl = projectsApi.slackOAuthUrl(PROJECT_ID);
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {/* Header */}
       <div>
-        <h2 className="text-sm font-semibold text-ink-primary">Slack Integration</h2>
-        <p className="text-xs text-ink-muted mt-0.5">
-          Connect a Slack channel to receive alert notifications when your agents misbehave.
+        <h2 className="text-sm font-semibold text-ink-primary">Configure Slack Notifications</h2>
+        <p className="text-xs text-ink-muted mt-1">
+          Connect your Slack workspace and configure a channel for notifications.
         </p>
       </div>
 
-      {/* Connected status */}
-      {slackConfig && (
-        <div className="flex items-center justify-between p-3 rounded-xl bg-green-500/5 border border-green-500/20">
-          <div className="flex items-center gap-2.5">
-            <Check className="w-4 h-4 text-green-400 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-green-300">
-                Slack connected{slackConfig.channel_name ? ` · #${slackConfig.channel_name}` : ""}
-              </p>
-              <p className="text-[10px] text-ink-dim mt-0.5 font-mono">{slackConfig.webhook_url_masked}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => test.mutate()}
-              disabled={test.isPending}
-              className="text-[11px] px-2.5 py-1 rounded-lg bg-dark-raised border border-dark-border text-ink-muted hover:text-ink-secondary transition-colors"
-            >
-              {testSent ? <span className="text-green-400">Sent ✓</span> : test.isPending ? "Sending…" : "Test"}
-            </button>
-            <button onClick={() => remove.mutate()} className="text-ink-dim hover:text-status-red transition-colors p-1.5 rounded-lg hover:bg-status-red/10">
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {save.isError && (
+      {/* OAuth error banner */}
+      {oauthStatus === "error" && (
         <div className="flex items-start gap-2 p-3 bg-red-500/5 border border-red-500/20 rounded-xl">
           <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
           <p className="text-xs text-red-400">
-            {(save.error as Error)?.message ?? "Failed to connect. Check the webhook URL."}
+            Could not connect Slack. The authorization may have been cancelled or the app isn't configured yet.
           </p>
         </div>
       )}
 
-      {/* Form */}
-      <div className="space-y-3">
-        <div>
-          <label className="form-label">Slack Incoming Webhook URL</label>
-          <input
-            className="input-dark"
-            placeholder="https://hooks.slack.com/services/T.../B.../..."
-            value={webhookUrl}
-            onChange={e => setWebhookUrl(e.target.value)}
-          />
-          <p className="text-[10px] text-ink-dim mt-1.5">
-            Create at <span className="text-ink-muted">api.slack.com → Your Apps → Incoming Webhooks</span>. Dottle will send a verification message on save.
+      {/* Connected state */}
+      {slackConfig ? (
+        <div className="border border-dark-border rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 bg-green-500/5 border-b border-green-500/15">
+            <div className="flex items-center gap-2.5">
+              {/* Slack logo pill */}
+              <div className="w-7 h-7 rounded-lg bg-[#4A154B] flex items-center justify-center shrink-0">
+                <span className="text-white text-[11px] font-bold">#</span>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-ink-primary">
+                  {slackConfig.workspace_name ?? "Slack"} connected
+                </p>
+                <p className="text-[10px] text-ink-dim mt-0.5">
+                  {slackConfig.channel_name ? `#${slackConfig.channel_name}` : "Incoming webhook active"} · {slackConfig.webhook_url_masked}
+                </p>
+              </div>
+            </div>
+            <Check className="w-4 h-4 text-green-400 shrink-0" />
+          </div>
+          <div className="px-4 py-3 flex items-center gap-2">
+            <button
+              onClick={() => test.mutate()}
+              disabled={test.isPending}
+              className="text-[12px] px-3 py-1.5 rounded-lg bg-dark-raised border border-dark-border text-ink-muted hover:text-ink-secondary transition-colors"
+            >
+              {testSent ? <span className="text-green-400">Test sent ✓</span> : test.isPending ? "Sending…" : "Send test message"}
+            </button>
+            <button
+              onClick={() => remove.mutate()}
+              className="ml-auto text-[12px] text-ink-dim hover:text-status-red transition-colors flex items-center gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Disconnect
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* Not connected — OAuth button */
+        <div className="border border-dark-border rounded-xl p-6 text-center space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-[#4A154B]/20 border border-[#4A154B]/30 flex items-center justify-center mx-auto">
+            <span className="text-[22px] font-black text-[#E01E5A]">#</span>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-ink-secondary">Get started by connecting your Slack workspace.</p>
+            <p className="text-[11px] text-ink-dim mt-1">
+              You'll be redirected to Slack to choose a channel for notifications.
+            </p>
+          </div>
+          {/* Official Slack "Add to Slack" button style */}
+          <a
+            href={oauthUrl}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-[13px] text-white transition-opacity hover:opacity-90"
+            style={{ background: "#4A154B" }}
+          >
+            {/* Slack bolt icon */}
+            <svg width="16" height="16" viewBox="0 0 54 54" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M19.712.133a5.381 5.381 0 0 0-5.376 5.387 5.381 5.381 0 0 0 5.376 5.386h5.376V5.52A5.381 5.381 0 0 0 19.712.133m0 14.365H5.376A5.381 5.381 0 0 0 0 19.884a5.381 5.381 0 0 0 5.376 5.387h14.336a5.381 5.381 0 0 0 5.376-5.387 5.381 5.381 0 0 0-5.376-5.386" fill="#36C5F0"/>
+              <path d="M53.76 19.884a5.381 5.381 0 0 0-5.376-5.386 5.381 5.381 0 0 0-5.376 5.386v5.387h5.376a5.381 5.381 0 0 0 5.376-5.387m-14.336 0V5.52A5.381 5.381 0 0 0 34.048.133a5.381 5.381 0 0 0-5.376 5.387v14.364a5.381 5.381 0 0 0 5.376 5.387 5.381 5.381 0 0 0 5.376-5.387" fill="#2EB67D"/>
+              <path d="M34.048 54a5.381 5.381 0 0 0 5.376-5.387 5.381 5.381 0 0 0-5.376-5.386h-5.376v5.386A5.381 5.381 0 0 0 34.048 54m0-14.365h14.336a5.381 5.381 0 0 0 5.376-5.386 5.381 5.381 0 0 0-5.376-5.387H34.048a5.381 5.381 0 0 0-5.376 5.387 5.381 5.381 0 0 0 5.376 5.386" fill="#ECB22E"/>
+              <path d="M0 34.249a5.381 5.381 0 0 0 5.376 5.386 5.381 5.381 0 0 0 5.376-5.386v-5.387H5.376A5.381 5.381 0 0 0 0 34.249m14.336 0v14.364A5.381 5.381 0 0 0 19.712 54a5.381 5.381 0 0 0 5.376-5.387V34.249a5.381 5.381 0 0 0-5.376-5.387 5.381 5.381 0 0 0-5.376 5.387" fill="#E01E5A"/>
+            </svg>
+            Add to Slack
+          </a>
+        </div>
+      )}
+
+      {/* Private support channel */}
+      <div className="border border-dark-border rounded-xl p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[13px] font-semibold text-ink-primary">Private Dottle Support Channel</p>
+            <p className="text-[11px] text-ink-muted mt-0.5">Optional</p>
+          </div>
+          <button
+            onClick={() => setSupportChannel(v => !v)}
+            className={`w-9 h-5 rounded-full transition-colors shrink-0 mt-0.5 relative ${supportChannel ? "bg-brand-600" : "bg-dark-border"}`}
+          >
+            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${supportChannel ? "left-4" : "left-0.5"}`} />
+          </button>
+        </div>
+        <p className="text-[11px] text-ink-muted">
+          Create a private Slack channel with the Dottle team for direct support and feedback.
+          We'll be able to help you debug agent issues and answer questions in real time.
+        </p>
+        {supportChannel && (
+          <p className="text-[11px] text-brand-400 flex items-center gap-1.5">
+            <Send className="w-3 h-3" />
+            Email <a href="mailto:support@dottle.dev" className="underline">support@dottle.dev</a> with your workspace name and we'll set it up.
           </p>
-        </div>
-        <div>
-          <label className="form-label">Channel name (optional)</label>
-          <input
-            className="input-dark"
-            placeholder="#alerts"
-            value={channelName}
-            onChange={e => setChannelName(e.target.value)}
-          />
-          <p className="text-[10px] text-ink-dim mt-1">For display only — routing is set in the Slack app.</p>
-        </div>
-        <Button
-          onClick={() => save.mutate()}
-          disabled={!webhookUrl}
-          loading={save.isPending}
-          icon={<Send />}
-        >
-          {slackConfig ? "Update Webhook" : "Connect Slack"}
-        </Button>
+        )}
       </div>
 
-      {/* How it works */}
-      <div className="border border-dark-border rounded-xl p-4 bg-dark-raised space-y-2">
-        <p className="text-xs font-semibold text-ink-secondary">How alerts work</p>
+      {/* How alerts work */}
+      <div className="border border-dark-border rounded-xl p-4 space-y-2">
+        <p className="text-[12px] font-semibold text-ink-secondary">How it works</p>
         <ul className="text-[11px] text-ink-muted space-y-1.5 list-disc list-inside">
-          <li>Go to <span className="text-ink-secondary">Alerts</span> to create alert rules (e.g. loop rate &gt; 5%)</li>
-          <li>When a rule fires, Dottle posts a message to this Slack channel</li>
-          <li>Messages include metric value, project name, and a link to the dashboard</li>
-          <li>Alerts have a 30-minute cooldown so you don't get spammed</li>
+          <li>Connect your workspace above to authorize Dottle in a Slack channel</li>
+          <li>Create alert rules on the <a href="/alerts" className="text-brand-400 hover:underline">Alerts page</a> (loop rate, error rate, cost, etc.)</li>
+          <li>When a rule fires, Dottle posts a formatted message with a link to the session</li>
+          <li>30-minute cooldown per rule prevents notification spam</li>
         </ul>
-        <a href="/alerts" className="inline-flex items-center gap-1 text-[11px] text-brand-400 hover:underline mt-1">
-          <Bell className="w-3 h-3" /> Manage alert rules →
-        </a>
       </div>
     </div>
   );

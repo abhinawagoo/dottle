@@ -32,6 +32,7 @@ class Project(Base):
 
     slack_webhook_url: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     slack_channel_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    slack_workspace_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     org: Mapped["Organization | None"] = relationship("Organization", back_populates="projects")
     sessions: Mapped[list["AgentSession"]] = relationship(

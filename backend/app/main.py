@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import ingest, sessions, metrics, alerts, projects, auth, orgs, issues, code_fixes
+from app.routers import ingest, sessions, metrics, alerts, projects, auth, orgs, issues, code_fixes, slack_oauth
 from app.workers.alert_worker import start_alert_worker, stop_alert_worker
 
 settings = get_settings()
@@ -50,6 +50,7 @@ app.include_router(metrics.router, prefix="/api/v1")
 app.include_router(alerts.router, prefix="/api/v1")
 app.include_router(issues.router, prefix="/api/v1")
 app.include_router(code_fixes.router, prefix="/api/v1")
+app.include_router(slack_oauth.router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["health"])

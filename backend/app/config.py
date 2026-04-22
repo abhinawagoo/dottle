@@ -48,7 +48,10 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     alert_from_email: str = "alerts@dottle.dev"
 
-    # Slack
+    # Slack OAuth App
+    slack_client_id: str = ""
+    slack_client_secret: str = ""
+    slack_redirect_uri: str = "http://localhost:8000/api/v1/slack/oauth/callback"
     slack_default_webhook: str = ""
 
     # Alert worker
