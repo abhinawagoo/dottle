@@ -57,6 +57,24 @@ export const projectsApi = {
   },
 };
 
+// ── Onboarding ───────────────────────────────────────────────────────────────
+export const onboardingApi = {
+  generatePrompt: (answers: {
+    language: string;
+    custom_language?: string;
+    framework: string;
+    custom_framework?: string;
+    llm_providers: string[];
+    custom_llm?: string;
+    agent_type: string;
+    custom_agent_type?: string;
+    tool_types: string[];
+    custom_tools?: string;
+    codebase_context?: string;
+  }, apiKey: string): Promise<{ prompt: string }> =>
+    api.post("/onboarding/generate-prompt", { answers, api_key: apiKey }).then(r => r.data),
+};
+
 // ── Sessions ─────────────────────────────────────────────────────────────────
 export const sessionsApi = {
   list: (params: {
