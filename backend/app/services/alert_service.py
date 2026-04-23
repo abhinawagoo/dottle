@@ -158,16 +158,27 @@ async def _fire_alert(rule: AlertRule, metric_value: float, db: AsyncSession) ->
         f"in the last {rule.window_minutes} minutes."
     )
 
+    # Resolve __project_slack__ sentinel → actual webhook URL
+    destination = rule.destination
+    if rule.channel == "slack" and destination == "__project_slack__":
+        proj_result = await db.execute(select(Project).where(Project.id == rule.project_id))
+        project = proj_result.scalar_one_or_none()
+        if project and project.slack_webhook_url:
+            destination = project.slack_webhook_url
+        else:
+            logger.warning(f"Alert {rule.id} uses __project_slack__ but no webhook is configured")
+            destination = ""
+
     delivered, error = await dispatch_alert(
         channel=rule.channel,
-        destination=rule.destination,
+        destination=destination,
         rule_name=rule.name,
         message=message,
         metric_value=metric_value,
-    )
+    ) if destination else (False, "No webhook configured")
 
-    # Also notify via project-level Slack webhook (if configured and not already using slack rule)
-    if rule.channel != "slack":
+    # Also notify via project-level Slack webhook for non-Slack rules (if configured)
+    if rule.channel != "slack" and destination != "__project_slack__":
         proj_result = await db.execute(select(Project).where(Project.id == rule.project_id))
         project = proj_result.scalar_one_or_none()
         if project and project.slack_webhook_url:

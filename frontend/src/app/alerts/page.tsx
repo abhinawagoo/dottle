@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { alertsApi } from "@/lib/api";
+import { alertsApi, projectsApi } from "@/lib/api";
 import { Card, EmptyState } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { formatDistanceToNow } from "date-fns";
@@ -14,6 +14,8 @@ import {
   XCircle,
   Bell,
   X,
+  Zap,
+  AlertCircle,
 } from "lucide-react";
 import { useProject } from "@/lib/project-context";
 
@@ -57,6 +59,13 @@ export default function AlertsPage() {
     enabled: !!PROJECT_ID,
   });
 
+  const { data: slackConfig } = useQuery({
+    queryKey: ["slack-config", PROJECT_ID],
+    queryFn: () => projectsApi.getSlack(PROJECT_ID),
+    enabled: !!PROJECT_ID,
+    retry: false,
+  });
+
   const { data: events } = useQuery({
     queryKey: ["alert-events", PROJECT_ID],
     queryFn: () => alertsApi.listEvents(PROJECT_ID),
@@ -95,7 +104,11 @@ export default function AlertsPage() {
           </p>
         </div>
         {!showForm && (
-          <Button icon={<Plus />} onClick={() => setShowForm(true)}>
+          <Button icon={<Plus />} onClick={() => {
+            // Pre-fill destination when Slack is already connected
+            setForm({ ...blank, destination: slackConfig ? "__project_slack__" : "" });
+            setShowForm(true);
+          }}>
             New Rule
           </Button>
         )}
@@ -177,32 +190,63 @@ export default function AlertsPage() {
               <select
                 className="input-dark"
                 value={form.channel}
-                onChange={(e) => setForm((f) => ({ ...f, channel: e.target.value }))}
+                onChange={(e) => {
+                  const ch = e.target.value;
+                  // Auto-use project Slack if connected
+                  const dest = ch === "slack" && slackConfig ? "__project_slack__" : "";
+                  setForm((f) => ({ ...f, channel: ch, destination: dest }));
+                }}
               >
                 <option value="slack">Slack</option>
                 <option value="email">Email</option>
               </select>
             </div>
             <div className="col-span-2">
-              <label className="form-label">
-                {form.channel === "slack" ? "Slack Webhook URL" : "Email Address"}
-              </label>
-              <input
-                className="input-dark"
-                placeholder={
-                  form.channel === "slack"
-                    ? "https://hooks.slack.com/services/..."
-                    : "you@company.com"
-                }
-                value={form.destination}
-                onChange={(e) => setForm((f) => ({ ...f, destination: e.target.value }))}
-              />
+              {form.channel === "slack" ? (
+                slackConfig ? (
+                  /* Slack is connected — show badge, no URL input needed */
+                  <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-green-500/5 border border-green-500/20">
+                    <div className="w-6 h-6 rounded-md bg-[#4A154B] flex items-center justify-center shrink-0">
+                      <span className="text-white text-[10px] font-bold">#</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-green-300">
+                        {slackConfig.workspace_name ?? "Slack"} connected
+                        {slackConfig.channel_name ? ` · #${slackConfig.channel_name}` : ""}
+                      </p>
+                      <p className="text-[10px] text-ink-dim mt-0.5">Alerts will be sent to this workspace</p>
+                    </div>
+                    <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+                  </div>
+                ) : (
+                  /* Slack not connected — prompt to set it up */
+                  <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-500/5 border border-amber-500/20">
+                    <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-medium text-amber-300">No Slack workspace connected</p>
+                      <p className="text-[11px] text-ink-dim mt-0.5">
+                        <a href="/settings?section=slack" className="text-brand-400 hover:underline">Connect Slack in Settings</a> to use this channel.
+                      </p>
+                    </div>
+                  </div>
+                )
+              ) : (
+                <div>
+                  <label className="form-label">Email Address</label>
+                  <input
+                    className="input-dark"
+                    placeholder="you@company.com"
+                    value={form.destination}
+                    onChange={(e) => setForm((f) => ({ ...f, destination: e.target.value }))}
+                  />
+                </div>
+              )}
             </div>
           </div>
           <div className="flex gap-2 mt-5 pt-4 border-t border-dark-divider">
             <Button
               onClick={() => createRule.mutate()}
-              disabled={!form.name || !form.destination}
+              disabled={!form.name || !form.destination || (form.channel === "slack" && !slackConfig && !form.destination)}
               loading={createRule.isPending}
             >
               Create Rule
