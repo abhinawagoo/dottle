@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
+import InstrumentWizard from "@/components/onboarding/InstrumentWizard";
 import { projectsApi, orgsApi, codeFixApi } from "@/lib/api";
 import { useOrg } from "@/lib/org-context";
 import { useAuth } from "@/lib/auth-context";
@@ -11,7 +12,7 @@ import { Button } from "@/components/ui/Button";
 import {
   Copy, Check, Plus, Trash2, Key, FolderOpen, RefreshCw,
   Building2, Users, UserPlus, Save, Github,
-  Bell, ShieldCheck, CreditCard, AlertCircle, Zap, Send,
+  Bell, ShieldCheck, CreditCard, AlertCircle, Zap, Send, Wand2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -639,12 +640,20 @@ function BillingSection() {
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const { selectedProject } = useProject();
   const [activeSection, setActiveSection] = useState<Section>("projects");
+  const [showWizard, setShowWizard] = useState(false);
 
   const active = SECTIONS.find(s => s.id === activeSection)!;
 
   return (
     <div className="flex h-full max-w-5xl mx-auto gap-0">
+      {showWizard && (
+        <InstrumentWizard
+          apiKey={selectedProject?.api_key ?? "dtl_live_your_api_key"}
+          onClose={() => setShowWizard(false)}
+        />
+      )}
 
       {/* Settings sidebar */}
       <aside className="w-[180px] shrink-0 border-r border-dark-border">
@@ -664,6 +673,17 @@ export default function SettingsPage() {
               {label}
             </button>
           ))}
+        </div>
+
+        {/* Auto-instrument CTA */}
+        <div className="px-2 mt-2 mb-1">
+          <button
+            onClick={() => setShowWizard(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-semibold bg-brand-600/15 text-brand-400 border border-brand-500/20 hover:bg-brand-600/25 transition-colors"
+          >
+            <Wand2 className="w-3.5 h-3.5 shrink-0" />
+            Auto-Instrument
+          </button>
         </div>
 
         {/* User info at bottom of settings sidebar */}

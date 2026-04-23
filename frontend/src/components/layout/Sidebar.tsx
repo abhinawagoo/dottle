@@ -1,12 +1,15 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 import {
   Activity, BarChart2, Bell, Layers, Settings, Zap, ShieldAlert,
   Sun, Moon, LogOut, HelpCircle, Users, Wrench, FlaskConical,
-  GitCompare, Search,
+  GitCompare, Wand2,
 } from "lucide-react";
+import InstrumentWizard from "@/components/onboarding/InstrumentWizard";
+import { useProject } from "@/lib/project-context";
 import { clsx } from "clsx";
 import { useTheme } from "@/lib/use-theme";
 import { useAuth } from "@/lib/auth-context";
@@ -54,7 +57,9 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { theme, toggle } = useTheme();
   const { user, logout } = useAuth();
+  const { selectedProject } = useProject();
   const router = useRouter();
+  const [showWizard, setShowWizard] = useState(false);
 
   function handleLogout() {
     logout();
@@ -66,6 +71,7 @@ export default function Sidebar() {
     : user?.email?.[0]?.toUpperCase() ?? "?";
 
   return (
+    <>
     <aside className="w-[200px] h-full bg-dark-surface border-r border-dark-border flex flex-col shrink-0">
 
       {/* Logo */}
@@ -94,6 +100,15 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className="px-2 py-3 border-t border-dark-border space-y-0.5 shrink-0">
+
+        {/* Auto-Instrument */}
+        <button
+          onClick={() => setShowWizard(true)}
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-brand-400 hover:text-brand-300 hover:bg-brand-500/10 transition-all"
+        >
+          <Wand2 className="w-4 h-4 shrink-0" />
+          Auto-Instrument
+        </button>
 
         {/* Support */}
         <a
@@ -144,5 +159,13 @@ export default function Sidebar() {
         </div>
       </div>
     </aside>
+
+    {showWizard && (
+      <InstrumentWizard
+        apiKey={selectedProject?.api_key ?? ""}
+        onClose={() => setShowWizard(false)}
+      />
+    )}
+    </>
   );
 }
