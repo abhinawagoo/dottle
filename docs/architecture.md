@@ -34,18 +34,24 @@
 │   └── notifier.py       — Slack + SMTP dispatch                │
 │                                                                │
 │   Workers                                                      │
-│   └── alert_worker.py   — APScheduler (60s interval)           │
+│   ├── alert_worker.py        — APScheduler alert rules (60s)   │
+│   └── stale_session_reaper.py — marks timed-out sessions       │
+│   ⚠️  Workers run inside the web process (see SCALE-02 in      │
+│      docs/scalability.md before horizontal scaling)             │
 └───────────────┬───────────────────────────┬────────────────────┘
-                │ async SQLAlchemy           │ aioredis
+                │ async SQLAlchemy           │ redis-py (asyncio)
                 ▼                           ▼
 ┌───────────────────────┐     ┌─────────────────────┐
 │     TimescaleDB       │     │       Redis          │
 │     (PostgreSQL 15)   │     │       (cache)        │
 │                       │     └─────────────────────┘
-│  Hypertables:         │
-│  ├── agent_sessions   │ ◀── partitioned by started_at
-│  ├── spans            │ ◀── partitioned by started_at
-│  └── tool_calls       │ ◀── partitioned by called_at
+│  Tables (plain PG):   │
+│  ├── agent_sessions   │ ◀── indexed by project_id, started_at
+│  ├── spans            │ ◀── indexed by session_id, project_id
+│  └── tool_calls       │ ◀── indexed by project_id, called_at
+│  ⚠️  Hypertables not  │
+│  yet enabled (SCALE-04│
+│  in scalability.md)   │
 │                       │
 │  Regular tables:      │
 │  ├── projects         │
@@ -88,6 +94,8 @@ TimescaleDB hypertables automatically partition data by time. This means:
 
 At 1M spans/day, plain PostgreSQL would need manual partitioning and struggle with range queries. TimescaleDB handles this transparently.
 
+> **Current status:** The TimescaleDB Docker image is in use but hypertables have not yet been created on `agent_sessions`, `spans`, or `tool_calls`. Plain PostgreSQL with standard indexes is active. See **SCALE-04** in `docs/scalability.md` for the migration that enables partitioning.
+
 ### Why denormalize tool_calls?
 
 The #1 dashboard query is "what's the failure rate per tool across all sessions?". Without denormalization:
@@ -127,6 +135,8 @@ Why both? Client-side gives the agent real-time feedback. Server-side is authori
 4. Logs the event to `alert_events` for the audit trail
 
 30-minute cooldown prevents alert storms. No external queue or worker process needed — this is appropriate for a self-hosted Level 1 tool.
+
+> **Scaling note:** Running the scheduler inside the web process means you cannot run more than one web replica without duplicate alerts and race conditions on session reaping. See **SCALE-02** in `docs/scalability.md` for the plan to move the scheduler into a dedicated worker process.
 
 ## Trace Timeline Visualization
 
