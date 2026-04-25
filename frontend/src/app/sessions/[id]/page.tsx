@@ -1,19 +1,22 @@
 "use client";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { sessionsApi } from "@/lib/api";
-import { Span, SessionIssue, IssueSeverity } from "@/lib/types";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { sessionsApi, scoresApi, datasetsApi, playgroundApi } from "@/lib/api";
+import { Span, SessionIssue, IssueSeverity, Score, DatasetSummary } from "@/lib/types";
 import { StatusBadge, LoopBadge, SpanTypeBadge } from "@/components/ui/Badge";
 import { Card, StatCard } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import SessionAIChat from "@/components/ui/SessionAIChat";
 import TraceTimeline from "@/components/timeline/TraceTimeline";
+import { useProject } from "@/lib/project-context";
 import { format } from "date-fns";
 import Link from "next/link";
+import { clsx } from "clsx";
 import {
   ArrowLeft, AlertTriangle, XCircle, Layers,
   ChevronDown, ChevronRight, Radio, ShieldAlert,
   AlertCircle, Info, TrendingUp, Zap, Tag, User, FlaskConical, Sparkles,
+  ThumbsUp, ThumbsDown, Database, Play, Loader2, Send, RotateCcw,
 } from "lucide-react";
 
 interface Props { params: { id: string } }
@@ -179,9 +182,257 @@ function SpanRow({ span }: { span: Span }) {
   );
 }
 
+/* ── Score panel ───────────────────────────────────────────────────────────── */
+function ScorePanel({ sessionId, projectId }: { sessionId: string; projectId: string }) {
+  const qc = useQueryClient();
+  const [comment, setComment] = useState("");
+
+  const { data: scores = [] } = useQuery({
+    queryKey: ["scores", sessionId],
+    queryFn: () => scoresApi.list(projectId, sessionId),
+  });
+
+  const addScore = useMutation({
+    mutationFn: (value: number) => scoresApi.create({
+      project_id: projectId,
+      session_id: sessionId,
+      name: "quality",
+      value,
+      comment: comment.trim() || undefined,
+      source: "human",
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["scores", sessionId] }); setComment(""); },
+  });
+
+  const thumbsUp = scores.filter(s => s.name === "quality" && s.value > 0);
+  const thumbsDown = scores.filter(s => s.name === "quality" && s.value < 0);
+  const modelScores = scores.filter(s => s.source === "model");
+
+  return (
+    <Card title={<span className="flex items-center gap-2"><ThumbsUp className="w-3.5 h-3.5 text-green-400" />Scores</span>}
+      subtitle="Rate this session or see AI evaluator scores">
+      <div className="space-y-4">
+        {/* Thumbs */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => addScore.mutate(1)}
+            disabled={addScore.isPending}
+            className={clsx(
+              "flex items-center gap-2 px-4 py-2 rounded-xl border text-[13px] font-medium transition-all",
+              thumbsUp.length > 0
+                ? "border-green-500/40 bg-green-500/10 text-green-400"
+                : "border-dark-border bg-dark-raised text-ink-muted hover:border-green-500/30 hover:text-green-400",
+            )}>
+            <ThumbsUp className="w-4 h-4" />
+            <span>{thumbsUp.length > 0 ? thumbsUp.length : "Good"}</span>
+          </button>
+          <button
+            onClick={() => addScore.mutate(-1)}
+            disabled={addScore.isPending}
+            className={clsx(
+              "flex items-center gap-2 px-4 py-2 rounded-xl border text-[13px] font-medium transition-all",
+              thumbsDown.length > 0
+                ? "border-red-500/40 bg-red-500/10 text-red-400"
+                : "border-dark-border bg-dark-raised text-ink-muted hover:border-red-500/30 hover:text-red-400",
+            )}>
+            <ThumbsDown className="w-4 h-4" />
+            <span>{thumbsDown.length > 0 ? thumbsDown.length : "Bad"}</span>
+          </button>
+          <input
+            value={comment}
+            onChange={e => setComment(e.target.value)}
+            placeholder="Optional comment…"
+            className="flex-1 bg-dark-bg border border-dark-border rounded-xl px-3 py-2 text-[12px] text-ink-secondary placeholder-ink-dim focus:outline-none focus:border-brand-500/50 transition-colors"
+          />
+        </div>
+
+        {/* AI evaluator scores */}
+        {modelScores.length > 0 && (
+          <div>
+            <p className="text-[10px] font-semibold text-ink-dim uppercase tracking-wide mb-2">AI Evaluators</p>
+            <div className="flex flex-wrap gap-2">
+              {modelScores.map(s => (
+                <div key={s.id} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-dark-raised border border-dark-border">
+                  <span className="text-[11px] text-ink-muted font-medium">{s.name}</span>
+                  <span className={clsx("text-[13px] font-bold", s.value >= 0.7 ? "text-green-400" : s.value >= 0.4 ? "text-yellow-400" : "text-red-400")}>
+                    {(s.value * 100).toFixed(0)}%
+                  </span>
+                  {s.comment && <span className="text-[10px] text-ink-dim truncate max-w-[120px]" title={s.comment}>{s.comment}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {scores.length === 0 && (
+          <p className="text-[11px] text-ink-dim">No scores yet. Rate this session or set up LLM evaluators in the Evals tab.</p>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/* ── Add to dataset button ─────────────────────────────────────────────────── */
+function AddToDatasetButton({ sessionId, projectId }: { sessionId: string; projectId: string }) {
+  const [open, setOpen] = useState(false);
+  const [selectedDataset, setSelectedDataset] = useState("");
+  const [expectedOutput, setExpectedOutput] = useState("");
+
+  const { data: datasets = [] } = useQuery({
+    queryKey: ["datasets", projectId],
+    queryFn: () => datasetsApi.list(projectId),
+    enabled: open,
+  });
+
+  const add = useMutation({
+    mutationFn: () => datasetsApi.addItem(selectedDataset, {
+      session_id: sessionId,
+      expected_output: expectedOutput || undefined,
+    }),
+    onSuccess: () => { setOpen(false); setSelectedDataset(""); setExpectedOutput(""); },
+  });
+
+  return (
+    <>
+      <button onClick={() => setOpen(true)}
+        className="flex items-center gap-1.5 text-[11px] text-ink-muted hover:text-ink-secondary border border-dark-border rounded px-2.5 py-1.5 transition-colors hover:border-dark-divider">
+        <Database className="w-3 h-3" /> Add to dataset
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm bg-dark-surface border border-dark-border rounded-2xl shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-dark-border">
+              <h3 className="text-[14px] font-semibold text-ink-primary">Add to dataset</h3>
+              <button onClick={() => setOpen(false)} className="text-ink-dim text-sm">✕</button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div>
+                <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide block mb-1.5">Dataset</label>
+                <select value={selectedDataset} onChange={e => setSelectedDataset(e.target.value)}
+                  className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-[12px] text-ink-secondary focus:outline-none">
+                  <option value="">Select dataset…</option>
+                  {(datasets as DatasetSummary[]).map(d => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide block mb-1.5">Expected output (optional)</label>
+                <textarea value={expectedOutput} onChange={e => setExpectedOutput(e.target.value)} rows={3}
+                  placeholder="What should the ideal agent response be?"
+                  className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-[12px] text-ink-secondary placeholder-ink-dim resize-none focus:outline-none focus:border-brand-500/50" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-5 py-4 border-t border-dark-border">
+              <button onClick={() => setOpen(false)} className="px-3 py-1.5 text-[12px] text-ink-muted">Cancel</button>
+              <button onClick={() => add.mutate()} disabled={!selectedDataset || add.isPending}
+                className="px-4 py-1.5 bg-brand-600 text-white rounded-lg text-[12px] font-semibold hover:bg-brand-500 disabled:opacity-40">
+                {add.isPending ? "Adding…" : "Add"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ── Playground panel ──────────────────────────────────────────────────────── */
+function PlaygroundPanel({ session }: { session: { id: string; spans: Span[] } }) {
+  // Pre-fill from the last LLM span's input
+  const lastLlm = [...session.spans].reverse().find(s => s.span_type === "llm");
+  const [system, setSystem] = useState("");
+  const [userMsg, setUserMsg] = useState(lastLlm?.input_text ?? "");
+  const [model, setModel] = useState(lastLlm?.model ?? "claude-sonnet-4-6");
+  const [result, setResult] = useState<{ content: string; input_tokens: number; output_tokens: number; cost_usd: number } | null>(null);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState("");
+
+  async function runPlayground() {
+    setRunning(true);
+    setError("");
+    setResult(null);
+    try {
+      const messages = [];
+      if (userMsg.trim()) messages.push({ role: "user" as const, content: userMsg });
+      const res = await playgroundApi.run({ model, system: system || undefined, messages });
+      setResult(res);
+    } catch (e: unknown) {
+      setError((e as Error).message || "Request failed");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <Card title={<span className="flex items-center gap-2"><Play className="w-3.5 h-3.5 text-brand-400" />Playground</span>}
+      subtitle="Edit the prompt and re-run it to test changes">
+      <div className="space-y-3">
+        <div className="grid grid-cols-4 gap-2 items-end">
+          <div className="col-span-3">
+            <label className="text-[10px] font-semibold text-ink-dim uppercase tracking-wide block mb-1">Model</label>
+            <select value={model} onChange={e => setModel(e.target.value)}
+              className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-[12px] text-ink-secondary focus:outline-none">
+              <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+              <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+              <option value="claude-opus-4-6">Claude Opus 4.6</option>
+            </select>
+          </div>
+          <button onClick={() => { setSystem(""); setUserMsg(lastLlm?.input_text ?? ""); setResult(null); }}
+            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dark-border text-[11px] text-ink-muted hover:text-ink-secondary transition-colors">
+            <RotateCcw className="w-3.5 h-3.5" /> Reset
+          </button>
+        </div>
+
+        <div>
+          <label className="text-[10px] font-semibold text-ink-dim uppercase tracking-wide block mb-1">System prompt</label>
+          <textarea value={system} onChange={e => setSystem(e.target.value)} rows={2}
+            placeholder="Optional system prompt…"
+            className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-[11px] font-mono text-ink-secondary placeholder-ink-dim resize-none focus:outline-none focus:border-brand-500/50" />
+        </div>
+
+        <div>
+          <label className="text-[10px] font-semibold text-ink-dim uppercase tracking-wide block mb-1">User message</label>
+          <textarea value={userMsg} onChange={e => setUserMsg(e.target.value)} rows={5}
+            placeholder="Edit the prompt here…"
+            className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-[11px] font-mono text-ink-secondary placeholder-ink-dim resize-none focus:outline-none focus:border-brand-500/50" />
+        </div>
+
+        <div className="flex justify-end">
+          <button onClick={runPlayground} disabled={running || !userMsg.trim()}
+            className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-lg text-[13px] font-semibold hover:bg-brand-500 disabled:opacity-40 transition-colors">
+            {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {running ? "Running…" : "Run"}
+          </button>
+        </div>
+
+        {error && <p className="text-[12px] text-status-red">{error}</p>}
+
+        {result && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 text-[10px] text-ink-dim">
+              <span>↑{result.input_tokens} in</span>
+              <span>↓{result.output_tokens} out</span>
+              <span>${result.cost_usd.toFixed(6)}</span>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold text-brand-400 uppercase tracking-wide mb-1">Response</p>
+              <pre className="bg-dark-bg border border-brand-600/30 rounded-xl p-3 text-[11px] font-mono text-ink-secondary whitespace-pre-wrap max-h-64 overflow-y-auto leading-relaxed">
+                {result.content}
+              </pre>
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 /* ── Page ──────────────────────────────────────────────────────────────────── */
 export default function SessionDetailPage({ params }: Props) {
   const [chatOpen, setChatOpen] = useState(false);
+  const { selectedProject } = useProject();
   const isLive = (status: string) => status === "running" || status === "looping";
 
   const { data: session, isLoading, error } = useQuery({
@@ -258,6 +509,9 @@ export default function SessionDetailPage({ params }: Props) {
             >
               <FlaskConical className="w-3 h-3" /> TS fixture
             </a>
+            {selectedProject && (
+              <AddToDatasetButton sessionId={session.id} projectId={selectedProject.id} />
+            )}
             <button
               onClick={() => setChatOpen(o => !o)}
               className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded border transition-all ${
@@ -405,6 +659,14 @@ export default function SessionDetailPage({ params }: Props) {
           </table>
         )}
       </Card>
+      {/* Score panel */}
+      {selectedProject && (
+        <ScorePanel sessionId={session.id} projectId={selectedProject.id} />
+      )}
+
+      {/* Playground */}
+      <PlaygroundPanel session={session} />
+
     </div>{/* end space-y-5 */}
     </div>{/* end main shift wrapper */}
 

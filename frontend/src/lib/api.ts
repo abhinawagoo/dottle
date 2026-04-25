@@ -3,6 +3,8 @@ import type {
   Project, Session, SessionDetail, SessionListResponse,
   MetricsSummary, CostOverTimeResponse, ToolFailureRatesResponse,
   AlertRule, AlertEvent,
+  Score, PromptVersion, EvalConfig, EvalResult,
+  DatasetSummary, DatasetDetail, PlaygroundResult,
 } from "./types";
 import type { Org } from "./org-context";
 
@@ -73,6 +75,70 @@ export const onboardingApi = {
     codebase_context?: string;
   }, apiKey: string): Promise<{ prompt: string }> =>
     api.post("/onboarding/generate-prompt", { answers, api_key: apiKey }).then(r => r.data),
+};
+
+// ── Scores ───────────────────────────────────────────────────────────────────
+export const scoresApi = {
+  create: (body: { project_id: string; session_id: string; span_id?: string; name?: string; value: number; comment?: string; source?: string }) =>
+    api.post("/scores", body).then(r => r.data),
+  list: (project_id: string, session_id?: string, name?: string) =>
+    api.get("/scores", { params: { project_id, session_id, name } }).then(r => r.data as Score[]),
+  delete: (id: string) => api.delete(`/scores/${id}`).then(r => r.data),
+};
+
+// ── Prompts ───────────────────────────────────────────────────────────────────
+export const promptsApi = {
+  list: (project_id: string) =>
+    api.get("/prompts", { params: { project_id } }).then(r => r.data as PromptVersion[]),
+  versions: (name: string, project_id: string) =>
+    api.get(`/prompts/${name}/versions`, { params: { project_id } }).then(r => r.data as PromptVersion[]),
+  get: (name: string, project_id: string, version?: number) =>
+    api.get(`/prompts/${name}`, { params: { project_id, version } }).then(r => r.data as PromptVersion),
+  create: (body: { project_id: string; name: string; content: string; label?: string; config?: Record<string,unknown>; tags?: string[]; commit_message?: string }) =>
+    api.post("/prompts", body).then(r => r.data as PromptVersion),
+  activate: (name: string, version: number, project_id: string) =>
+    api.put(`/prompts/${name}/activate/${version}`, null, { params: { project_id } }).then(r => r.data),
+  delete: (id: string) => api.delete(`/prompts/${id}`).then(r => r.data),
+};
+
+// ── Evals ─────────────────────────────────────────────────────────────────────
+export const evalsApi = {
+  listConfigs: (project_id: string) =>
+    api.get("/evals/configs", { params: { project_id } }).then(r => r.data as EvalConfig[]),
+  createConfig: (body: { project_id: string; name: string; criteria: string; score_name: string; evaluator_model?: string; run_on?: string; sample_rate?: number; description?: string }) =>
+    api.post("/evals/configs", body).then(r => r.data as EvalConfig),
+  updateConfig: (id: string, body: Partial<EvalConfig>) =>
+    api.put(`/evals/configs/${id}`, body).then(r => r.data as EvalConfig),
+  deleteConfig: (id: string) => api.delete(`/evals/configs/${id}`).then(r => r.data),
+  runOnSession: (configId: string, sessionId: string) =>
+    api.post(`/evals/configs/${configId}/run/${sessionId}`).then(r => r.data),
+  listResults: (project_id: string, session_id?: string, config_id?: string) =>
+    api.get("/evals/results", { params: { project_id, session_id, config_id } }).then(r => r.data as EvalResult[]),
+};
+
+// ── Datasets ─────────────────────────────────────────────────────────────────
+export const datasetsApi = {
+  list: (project_id: string) =>
+    api.get("/datasets", { params: { project_id } }).then(r => r.data as DatasetSummary[]),
+  get: (id: string) =>
+    api.get(`/datasets/${id}`).then(r => r.data as DatasetDetail),
+  create: (body: { project_id: string; name: string; description?: string }) =>
+    api.post("/datasets", body).then(r => r.data as DatasetSummary),
+  delete: (id: string) => api.delete(`/datasets/${id}`).then(r => r.data),
+  addItem: (datasetId: string, body: { session_id?: string; input?: Record<string,unknown>; expected_output?: string; metadata?: Record<string,unknown> }) =>
+    api.post(`/datasets/${datasetId}/items`, body).then(r => r.data),
+  deleteItem: (datasetId: string, itemId: string) =>
+    api.delete(`/datasets/${datasetId}/items/${itemId}`).then(r => r.data),
+  createRun: (datasetId: string, body: { name: string; model?: string; prompt_id?: string; eval_criteria?: string; description?: string }) =>
+    api.post(`/datasets/${datasetId}/runs`, body).then(r => r.data),
+  listRuns: (datasetId: string) =>
+    api.get(`/datasets/${datasetId}/runs`).then(r => r.data),
+};
+
+// ── Playground ───────────────────────────────────────────────────────────────
+export const playgroundApi = {
+  run: (body: { model: string; system?: string; messages: Array<{role: string; content: string}>; temperature?: number; max_tokens?: number }) =>
+    api.post("/playground/run", body).then(r => r.data as PlaygroundResult),
 };
 
 // ── Sessions ─────────────────────────────────────────────────────────────────

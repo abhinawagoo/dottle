@@ -232,6 +232,128 @@ export interface CodeFixJob {
   updated_at: string;
 }
 
+// ── Scores ────────────────────────────────────────────────────────────────────
+
+export interface Score {
+  id: string;
+  project_id: string;
+  session_id: string;
+  span_id: string | null;
+  name: string;
+  value: number;
+  string_value: string | null;
+  comment: string | null;
+  source: "human" | "model" | "api";
+  model_name: string | null;
+  created_at: string;
+}
+
+// ── Prompts ───────────────────────────────────────────────────────────────────
+
+export interface PromptVersion {
+  id: string;
+  project_id: string;
+  name: string;
+  version: number;
+  label: string | null;
+  content: string;
+  variables: string[];
+  config: Record<string, unknown>;
+  tags: string[];
+  is_active: boolean;
+  commit_message: string | null;
+  created_at: string;
+}
+
+// ── Evals ─────────────────────────────────────────────────────────────────────
+
+export interface EvalConfig {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string | null;
+  evaluator_model: string;
+  criteria: string;
+  score_name: string;
+  score_range_min: number;
+  score_range_max: number;
+  run_on: "all" | "sample";
+  sample_rate: number;
+  active: boolean;
+  created_at: string;
+}
+
+export interface EvalResult {
+  id: string;
+  eval_config_id: string;
+  session_id: string;
+  score_value: number | null;
+  reasoning: string | null;
+  status: "pending" | "completed" | "failed";
+  error: string | null;
+  created_at: string;
+}
+
+// ── Datasets ─────────────────────────────────────────────────────────────────
+
+export interface DatasetSummary {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string | null;
+  item_count: number;
+  run_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DatasetItem {
+  id: string;
+  dataset_id: string;
+  session_id: string | null;
+  input: Record<string, unknown>;
+  expected_output: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface DatasetRunResult {
+  item_id: string;
+  session_id: string | null;
+  score: number | null;
+  reasoning: string | null;
+  status: string;
+  error?: string;
+}
+
+export interface DatasetRun {
+  id: string;
+  dataset_id: string;
+  name: string;
+  description: string | null;
+  model: string | null;
+  status: "pending" | "running" | "completed" | "failed";
+  results: DatasetRunResult[];
+  avg_score: number | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface DatasetDetail extends DatasetSummary {
+  items: DatasetItem[];
+  runs: DatasetRun[];
+}
+
+// ── Playground ───────────────────────────────────────────────────────────────
+
+export interface PlaygroundResult {
+  content: string;
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+}
+
 export interface AlertEvent {
   id: string;
   alert_rule_id: string;

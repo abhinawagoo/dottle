@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Activity, BarChart2, Bell, Layers, Settings, Zap, ShieldAlert,
   Sun, Moon, LogOut, HelpCircle, Users, Wrench, FlaskConical,
-  GitCompare, Wand2,
+  GitCompare, Wand2, Tag, Bot, Database,
 } from "lucide-react";
 import InstrumentWizard from "@/components/onboarding/InstrumentWizard";
 import { useProject } from "@/lib/project-context";
@@ -25,7 +25,10 @@ const NAV = [
 ];
 
 const NAV_BOTTOM = [
-  { href: "/sessions/compare", label: "Compare",     icon: GitCompare    },
+  { href: "/prompts",          label: "Prompts",     icon: Tag        },
+  { href: "/evals",            label: "Evaluators",  icon: Bot        },
+  { href: "/datasets",         label: "Datasets",    icon: Database   },
+  { href: "/sessions/compare", label: "Compare",     icon: GitCompare },
   { href: "/experiments",      label: "Experiments", icon: FlaskConical, badge: "soon" as const },
 ];
 
