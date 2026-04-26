@@ -5,8 +5,14 @@ from dataclasses import dataclass, field
 
 @dataclass
 class AgentLoopConfig:
-    api_url: str = field(default_factory=lambda: os.environ.get("AGENTLOOP_API_URL", "http://localhost:8000/api/v1"))
-    api_key: str = field(default_factory=lambda: os.environ.get("AGENTLOOP_API_KEY", ""))
+    api_url: str = field(default_factory=lambda: os.environ.get(
+        "DOTTLE_API_URL",
+        os.environ.get("AGENTLOOP_API_URL", "https://dottle-production.up.railway.app/api/v1")
+    ))
+    api_key: str = field(default_factory=lambda: os.environ.get(
+        "DOTTLE_API_KEY",
+        os.environ.get("AGENTLOOP_API_KEY", "")
+    ))
     flush_interval_ms: int = 2000       # background thread flush interval
     max_batch_size: int = 50
     timeout_s: int = 5
@@ -18,7 +24,7 @@ class AgentLoopConfig:
         if not self.api_key:
             raise ValueError(
                 "Dottle API key not set. "
-                "Set AGENTLOOP_API_KEY env var or pass api_key= to AgentLoop()"
+                "Set DOTTLE_API_KEY env var or pass api_key= to dottle.configure()"
             )
         if not self.api_url:
             raise ValueError("Dottle API URL not set.")
