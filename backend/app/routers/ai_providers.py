@@ -108,8 +108,8 @@ async def upsert_provider(
         row.updated_at = datetime.utcnow()
     else:
         row = ProjectAIProvider(
-            id=str(uuid.uuid4()),
-            project_id=project_id,
+            id=uuid.uuid4(),
+            project_id=uuid.UUID(project_id),
             provider=provider,
             api_key_enc=body.api_key.strip(),
         )
