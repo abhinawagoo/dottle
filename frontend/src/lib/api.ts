@@ -273,6 +273,25 @@ export const codeFixApi = {
     api.post(`/fix/jobs/${jobId}/create-pr`, data ?? {}).then(r => r.data),
 };
 
+// ── AI Providers ─────────────────────────────────────────────────────────────
+export interface AIProviderEntry {
+  provider: string;
+  env_var: string;
+  api_key_masked: string | null;
+  updated_at: string | null;
+}
+
+export const aiProvidersApi = {
+  list: (projectId: string): Promise<AIProviderEntry[]> =>
+    api.get(`/projects/${projectId}/ai-providers`).then(r => r.data),
+
+  upsert: (projectId: string, provider: string, api_key: string): Promise<void> =>
+    api.put(`/projects/${projectId}/ai-providers/${provider}`, { api_key }).then(r => r.data),
+
+  delete: (projectId: string, provider: string): Promise<void> =>
+    api.delete(`/projects/${projectId}/ai-providers/${provider}`).then(r => r.data),
+};
+
 // ── Alerts ───────────────────────────────────────────────────────────────────
 export const alertsApi = {
   listRules: (projectId: string): Promise<AlertRule[]> =>

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import InstrumentWizard from "@/components/onboarding/InstrumentWizard";
-import { projectsApi, orgsApi, codeFixApi } from "@/lib/api";
+import { projectsApi, orgsApi, codeFixApi, aiProvidersApi, type AIProviderEntry } from "@/lib/api";
 import { useOrg } from "@/lib/org-context";
 import { useAuth } from "@/lib/auth-context";
 import { useProject } from "@/lib/project-context";
@@ -13,6 +13,7 @@ import {
   Copy, Check, Plus, Trash2, Key, FolderOpen, RefreshCw,
   Building2, Users, UserPlus, Save, Github,
   Bell, ShieldCheck, CreditCard, AlertCircle, Zap, Send, Wand2,
+  Bot, Pencil, X, Eye, EyeOff,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -21,6 +22,7 @@ import { formatDistanceToNow } from "date-fns";
 type Section =
   | "projects"
   | "team"
+  | "ai_providers"
   | "slack"
   | "github"
   | "alerts"
@@ -28,14 +30,210 @@ type Section =
   | "billing";
 
 const SECTIONS: { id: Section; label: string; icon: React.ElementType }[] = [
-  { id: "projects", label: "API Keys",     icon: Key         },
-  { id: "team",     label: "Team",         icon: Users       },
-  { id: "slack",    label: "Slack",        icon: Zap         },
-  { id: "github",   label: "GitHub",       icon: Github      },
-  { id: "alerts",   label: "Alerts",       icon: Bell        },
-  { id: "pii",      label: "PII Redaction",icon: ShieldCheck },
-  { id: "billing",  label: "Billing",      icon: CreditCard  },
+  { id: "projects",     label: "API Keys",      icon: Key         },
+  { id: "team",         label: "Team",          icon: Users       },
+  { id: "ai_providers", label: "AI Providers",  icon: Bot         },
+  { id: "slack",        label: "Slack",         icon: Zap         },
+  { id: "github",       label: "GitHub",        icon: Github      },
+  { id: "alerts",       label: "Alerts",        icon: Bell        },
+  { id: "pii",          label: "PII Redaction", icon: ShieldCheck },
+  { id: "billing",      label: "Billing",       icon: CreditCard  },
 ];
+
+// ── AI Providers section ──────────────────────────────────────────────────────
+
+const PROVIDER_META: Record<string, { label: string; color: string; initial: string }> = {
+  openai:    { label: "OpenAI",        color: "#10a37f", initial: "O" },
+  anthropic: { label: "Anthropic",     color: "#d97706", initial: "A" },
+  gemini:    { label: "Google Gemini", color: "#4285f4", initial: "G" },
+  mistral:   { label: "Mistral",       color: "#7c3aed", initial: "M" },
+  together:  { label: "Together.ai",   color: "#0ea5e9", initial: "T" },
+  fireworks: { label: "Fireworks",     color: "#f97316", initial: "F" },
+  groq:      { label: "Groq",          color: "#e11d48", initial: "G" },
+  cohere:    { label: "Cohere",        color: "#6366f1", initial: "C" },
+};
+
+function AIProvidersSection() {
+  const qc = useQueryClient();
+  const { selectedProject } = useProject();
+  const PROJECT_ID = selectedProject?.id ?? "";
+
+  const [editing, setEditing] = useState<string | null>(null);
+  const [keyInput, setKeyInput] = useState("");
+  const [showKey, setShowKey] = useState(false);
+
+  const { data: providers = [] } = useQuery<AIProviderEntry[]>({
+    queryKey: ["ai-providers", PROJECT_ID],
+    queryFn: () => aiProvidersApi.list(PROJECT_ID),
+    enabled: !!PROJECT_ID,
+  });
+
+  const upsert = useMutation({
+    mutationFn: ({ provider, api_key }: { provider: string; api_key: string }) =>
+      aiProvidersApi.upsert(PROJECT_ID, provider, api_key),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ai-providers", PROJECT_ID] });
+      setEditing(null);
+      setKeyInput("");
+      setShowKey(false);
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: (provider: string) => aiProvidersApi.delete(PROJECT_ID, provider),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ai-providers", PROJECT_ID] }),
+  });
+
+  function startEdit(provider: string) {
+    setEditing(provider);
+    setKeyInput("");
+    setShowKey(false);
+  }
+
+  function cancelEdit() {
+    setEditing(null);
+    setKeyInput("");
+  }
+
+  if (!PROJECT_ID) {
+    return <p className="text-sm text-ink-muted">Select a project first.</p>;
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-sm font-semibold text-ink-primary">AI Providers</h2>
+        <p className="text-xs text-ink-muted mt-0.5">
+          Store API keys for AI providers. Used by evaluators, playground, and experiments.
+        </p>
+      </div>
+
+      {/* Header row */}
+      <div className="border border-dark-border rounded-xl overflow-hidden">
+        <div className="grid grid-cols-[1fr_120px_140px_56px] px-4 py-2 bg-dark-raised border-b border-dark-border">
+          <span className="text-[10px] font-semibold text-ink-dim uppercase tracking-wider">Provider</span>
+          <span className="text-[10px] font-semibold text-ink-dim uppercase tracking-wider">Status</span>
+          <span className="text-[10px] font-semibold text-ink-dim uppercase tracking-wider">Last updated</span>
+          <span />
+        </div>
+
+        {providers.map((p, i) => {
+          const meta = PROVIDER_META[p.provider] ?? { label: p.provider, color: "#6b7280", initial: p.provider[0].toUpperCase() };
+          const isEditing = editing === p.provider;
+          const isConfigured = !!p.api_key_masked;
+
+          return (
+            <div key={p.provider}>
+              {/* Main row */}
+              <div className={`grid grid-cols-[1fr_120px_140px_56px] px-4 py-3 items-center ${i < providers.length - 1 || isEditing ? "border-b border-dark-divider" : ""}`}>
+                {/* Provider name */}
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[11px] font-bold shrink-0"
+                    style={{ backgroundColor: meta.color + "33", color: meta.color, border: `1px solid ${meta.color}40` }}
+                  >
+                    {meta.initial}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-ink-primary">{meta.label}</p>
+                    <p className="text-[10px] font-mono text-ink-dim">{p.env_var}</p>
+                  </div>
+                </div>
+
+                {/* Status */}
+                <div className="flex items-center gap-1.5">
+                  {isConfigured ? (
+                    <>
+                      <Check className="w-3 h-3 text-green-400 shrink-0" />
+                      <span className="text-xs text-green-400 font-medium">Configured</span>
+                    </>
+                  ) : (
+                    <span className="text-xs text-ink-dim">Not configured</span>
+                  )}
+                </div>
+
+                {/* Last updated */}
+                <span className="text-xs text-ink-muted">
+                  {p.updated_at
+                    ? new Date(p.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                    : "–"}
+                </span>
+
+                {/* Actions */}
+                <div className="flex items-center gap-1 justify-end">
+                  <button
+                    onClick={() => isEditing ? cancelEdit() : startEdit(p.provider)}
+                    className="p-1.5 rounded-lg text-ink-dim hover:text-ink-secondary hover:bg-dark-raised transition-colors"
+                    title={isEditing ? "Cancel" : "Edit key"}
+                  >
+                    {isEditing ? <X className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
+                  </button>
+                  {isConfigured && !isEditing && (
+                    <button
+                      onClick={() => { if (confirm(`Remove ${meta.label} API key?`)) remove.mutate(p.provider); }}
+                      className="p-1.5 rounded-lg text-ink-dim hover:text-status-red hover:bg-status-red/10 transition-colors"
+                      title="Remove key"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Inline edit panel */}
+              {isEditing && (
+                <div className={`px-4 py-3 bg-dark-raised/60 border-b border-dark-divider space-y-3`}>
+                  <p className="text-xs text-ink-muted">
+                    {isConfigured
+                      ? `Current: ${p.api_key_masked} — enter a new key to replace it`
+                      : `Enter your ${meta.label} API key`}
+                  </p>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type={showKey ? "text" : "password"}
+                        className="input-dark w-full pr-10 font-mono text-sm"
+                        placeholder={p.env_var.toLowerCase().replace(/_/g, "-") + "-..."}
+                        value={keyInput}
+                        onChange={e => setKeyInput(e.target.value)}
+                        onKeyDown={e => e.key === "Enter" && keyInput && upsert.mutate({ provider: p.provider, api_key: keyInput })}
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => setShowKey(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-dim hover:text-ink-secondary transition-colors"
+                      >
+                        {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    <Button
+                      onClick={() => upsert.mutate({ provider: p.provider, api_key: keyInput })}
+                      disabled={!keyInput}
+                      loading={upsert.isPending}
+                      icon={<Save />}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-ink-dim">
+                    Keys are stored securely and only used server-side for evaluations and playground requests in this project.
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex items-start gap-2 p-3 bg-dark-raised/50 border border-dark-border rounded-xl">
+        <AlertCircle className="w-4 h-4 text-ink-dim shrink-0 mt-0.5" />
+        <p className="text-[11px] text-ink-muted">
+          Keys are stored per-project and never exposed in full after saving. They're used when running LLM evaluators or playground prompts that target the selected provider.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // ── GitHub Integration section ────────────────────────────────────────────────
 
@@ -695,9 +893,10 @@ export default function SettingsPage() {
       {/* Content */}
       <main className="flex-1 px-8 py-5 overflow-y-auto">
         <div className="max-w-xl space-y-5">
-          {activeSection === "projects" && <ProjectsSection />}
-          {activeSection === "team"     && <TeamSection />}
-          {activeSection === "slack"    && <SlackSection />}
+          {activeSection === "projects"     && <ProjectsSection />}
+          {activeSection === "team"         && <TeamSection />}
+          {activeSection === "ai_providers" && <AIProvidersSection />}
+          {activeSection === "slack"        && <SlackSection />}
           {activeSection === "github"   && <GitHubSection />}
           {activeSection === "alerts"   && <AlertsSection />}
           {activeSection === "pii"      && <PIISection />}
