@@ -136,9 +136,82 @@ export const datasetsApi = {
 };
 
 // ── Playground ───────────────────────────────────────────────────────────────
+export interface ProviderModels {
+  provider: string;
+  configured: boolean;
+  models: { id: string; label: string }[];
+}
+
 export const playgroundApi = {
-  run: (body: { model: string; system?: string; messages: Array<{role: string; content: string}>; temperature?: number; max_tokens?: number }) =>
+  run: (body: { model: string; system?: string; messages: Array<{role: string; content: string}>; temperature?: number; max_tokens?: number; project_id?: string }) =>
     api.post("/playground/run", body).then(r => r.data as PlaygroundResult),
+
+  listModels: (projectId?: string): Promise<ProviderModels[]> =>
+    api.get("/playground/models", { params: projectId ? { project_id: projectId } : {} }).then(r => r.data),
+};
+
+// ── Experiments ───────────────────────────────────────────────────────────────
+export interface ExperimentVariant {
+  model: string;
+  system_prompt: string;
+  label?: string;
+}
+
+export interface ExperimentSummary {
+  id: string;
+  name: string;
+  description?: string;
+  dataset_id?: string;
+  variant_a: ExperimentVariant;
+  variant_b: ExperimentVariant;
+  status: "draft" | "running" | "completed" | "failed";
+  result_summary?: {
+    a_avg_score: number;
+    b_avg_score: number;
+    winner: "a" | "b" | "tie";
+    total_items: number;
+    a_wins: number;
+    b_wins: number;
+    ties: number;
+  };
+  created_at: string;
+  completed_at?: string;
+}
+
+export interface ExperimentRun {
+  id: string;
+  variant: "a" | "b";
+  item_index: number;
+  input_text?: string;
+  response_text?: string;
+  score?: number;
+  reasoning?: string;
+  status: string;
+}
+
+export interface ExperimentDetail extends ExperimentSummary {
+  runs: ExperimentRun[];
+}
+
+export const experimentsApi = {
+  list: (projectId: string): Promise<ExperimentSummary[]> =>
+    api.get("/experiments", { params: { project_id: projectId } }).then(r => r.data),
+
+  create: (body: {
+    project_id: string; name: string; description?: string;
+    dataset_id?: string; eval_criteria?: string;
+    variant_a: ExperimentVariant; variant_b: ExperimentVariant;
+  }): Promise<ExperimentSummary> =>
+    api.post("/experiments", body).then(r => r.data),
+
+  get: (id: string): Promise<ExperimentDetail> =>
+    api.get(`/experiments/${id}`).then(r => r.data),
+
+  run: (id: string): Promise<void> =>
+    api.post(`/experiments/${id}/run`).then(r => r.data),
+
+  delete: (id: string): Promise<void> =>
+    api.delete(`/experiments/${id}`).then(r => r.data),
 };
 
 // ── Sessions ─────────────────────────────────────────────────────────────────

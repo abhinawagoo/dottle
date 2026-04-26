@@ -349,6 +349,7 @@ export interface DatasetDetail extends DatasetSummary {
 export interface PlaygroundResult {
   content: string;
   model: string;
+  provider: string;
   input_tokens: number;
   output_tokens: number;
   cost_usd: number;

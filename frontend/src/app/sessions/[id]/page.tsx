@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { sessionsApi, scoresApi, datasetsApi, playgroundApi } from "@/lib/api";
+import { sessionsApi, scoresApi, datasetsApi, playgroundApi, type ProviderModels } from "@/lib/api";
 import { Span, SessionIssue, IssueSeverity, Score, DatasetSummary } from "@/lib/types";
 import { StatusBadge, LoopBadge, SpanTypeBadge } from "@/components/ui/Badge";
 import { Card, StatCard } from "@/components/ui/Card";
@@ -340,14 +340,20 @@ function AddToDatasetButton({ sessionId, projectId }: { sessionId: string; proje
 
 /* ── Playground panel ──────────────────────────────────────────────────────── */
 function PlaygroundPanel({ session }: { session: { id: string; spans: Span[] } }) {
-  // Pre-fill from the last LLM span's input
+  const { selectedProject } = useProject();
   const lastLlm = [...session.spans].reverse().find(s => s.span_type === "llm");
   const [system, setSystem] = useState("");
   const [userMsg, setUserMsg] = useState(lastLlm?.input_text ?? "");
   const [model, setModel] = useState(lastLlm?.model ?? "claude-sonnet-4-6");
-  const [result, setResult] = useState<{ content: string; input_tokens: number; output_tokens: number; cost_usd: number } | null>(null);
+  const [result, setResult] = useState<{ content: string; provider: string; input_tokens: number; output_tokens: number; cost_usd: number } | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
+
+  const { data: providerGroups = [] } = useQuery<ProviderModels[]>({
+    queryKey: ["playground-models", selectedProject?.id],
+    queryFn: () => playgroundApi.listModels(selectedProject?.id),
+    staleTime: 60_000,
+  });
 
   async function runPlayground() {
     setRunning(true);
@@ -356,7 +362,10 @@ function PlaygroundPanel({ session }: { session: { id: string; spans: Span[] } }
     try {
       const messages = [];
       if (userMsg.trim()) messages.push({ role: "user" as const, content: userMsg });
-      const res = await playgroundApi.run({ model, system: system || undefined, messages });
+      const res = await playgroundApi.run({
+        model, system: system || undefined, messages,
+        project_id: selectedProject?.id,
+      });
       setResult(res);
     } catch (e: unknown) {
       setError((e as Error).message || "Request failed");
@@ -367,16 +376,28 @@ function PlaygroundPanel({ session }: { session: { id: string; spans: Span[] } }
 
   return (
     <Card title={<span className="flex items-center gap-2"><Play className="w-3.5 h-3.5 text-brand-400" />Playground</span>}
-      subtitle="Edit the prompt and re-run it to test changes">
+      subtitle="Edit the prompt and re-run it against any configured model">
       <div className="space-y-3">
         <div className="grid grid-cols-4 gap-2 items-end">
           <div className="col-span-3">
             <label className="text-[10px] font-semibold text-ink-dim uppercase tracking-wide block mb-1">Model</label>
             <select value={model} onChange={e => setModel(e.target.value)}
               className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-[12px] text-ink-secondary focus:outline-none">
-              <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-              <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
-              <option value="claude-opus-4-6">Claude Opus 4.6</option>
+              {providerGroups.length > 0 ? (
+                providerGroups.map(pg => (
+                  <optgroup key={pg.provider} label={`${pg.provider.charAt(0).toUpperCase() + pg.provider.slice(1)}${pg.configured ? "" : " (no key)"}`}>
+                    {pg.models.map(m => (
+                      <option key={m.id} value={m.id} disabled={!pg.configured}>{m.label}</option>
+                    ))}
+                  </optgroup>
+                ))
+              ) : (
+                <>
+                  <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+                  <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+                  <option value="claude-opus-4-6">Claude Opus 4.6</option>
+                </>
+              )}
             </select>
           </div>
           <button onClick={() => { setSystem(""); setUserMsg(lastLlm?.input_text ?? ""); setResult(null); }}
