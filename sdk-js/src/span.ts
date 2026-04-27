@@ -79,6 +79,11 @@ export class SpanContext {
     return this;
   }
 
+  /** Alias for setError — both names work */
+  recordError(message: string, errorType?: string): this {
+    return this.setError(message, errorType);
+  }
+
   /** Attach arbitrary metadata */
   setAttribute(key: string, value: unknown): this {
     this.attributes[key] = value;
