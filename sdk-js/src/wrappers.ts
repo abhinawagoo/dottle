@@ -81,6 +81,26 @@ export function wrapOpenAI<T extends OpenAILike>(client: T): T {
   return client;
 }
 
+// ── Groq SDK wrapper (OpenAI-compatible) ──────────────────────────────────────
+
+/**
+ * Wrap a Groq client instance. Groq's SDK is OpenAI-compatible, so this
+ * works identically to wrapOpenAI.
+ *
+ * @example
+ * import Groq from "groq-sdk";
+ * import dottle, { wrapGroq } from "dottle-sdk";
+ *
+ * const groq = wrapGroq(new Groq({ apiKey: process.env.GROQ_API_KEY }));
+ *
+ * await dottle.session("my-agent", async () => {
+ *   const res = await groq.chat.completions.create({ model: "llama-3.3-70b-versatile", messages: [...] });
+ * });
+ */
+export function wrapGroq<T extends OpenAILike>(client: T): T {
+  return wrapOpenAI(client);
+}
+
 // ── Anthropic Node SDK wrapper ─────────────────────────────────────────────────
 
 interface AnthropicLike {
@@ -148,6 +168,93 @@ export function wrapAnthropic<T extends AnthropicLike>(client: T): T {
         return result;
       });
     };
+
+  client.__dottle_wrapped = true;
+  return client;
+}
+
+// ── Google Gemini SDK wrapper ──────────────────────────────────────────────────
+
+interface GeminiModelLike {
+  generateContent: (...args: unknown[]) => Promise<unknown>;
+  __dottle_wrapped?: boolean;
+}
+
+interface GeminiClientLike {
+  getGenerativeModel: (params: { model: string; [key: string]: unknown }) => GeminiModelLike;
+  __dottle_wrapped?: boolean;
+}
+
+/**
+ * Wrap a Google Generative AI client. Patches `getGenerativeModel` so every
+ * model returned automatically traces `generateContent` calls.
+ *
+ * @example
+ * import { GoogleGenerativeAI } from "@google/generative-ai";
+ * import dottle, { wrapGemini } from "dottle-sdk";
+ *
+ * const genAI = wrapGemini(new GoogleGenerativeAI(process.env.GEMINI_API_KEY!));
+ *
+ * await dottle.session("my-agent", async () => {
+ *   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+ *   const result = await model.generateContent("Hello!");
+ *   console.log(result.response.text());
+ * });
+ */
+export function wrapGemini<T extends GeminiClientLike>(client: T): T {
+  if (client.__dottle_wrapped) return client;
+
+  const originalGetModel = client.getGenerativeModel.bind(client);
+
+  (client as GeminiClientLike).getGenerativeModel = (params: { model: string; [key: string]: unknown }) => {
+    const model = originalGetModel(params);
+    const modelId = params.model ?? "gemini";
+
+    if (model.__dottle_wrapped) return model;
+
+    const originalGenerate = model.generateContent.bind(model);
+
+    model.generateContent = async (...args: unknown[]): Promise<unknown> => {
+      const store = getCurrentStore();
+      if (!store) return originalGenerate(...args);
+
+      const sdkClient = getClient();
+
+      return runSpan(sdkClient, "llm", modelId, async (s: SpanContext) => {
+        const result = await originalGenerate(...args) as Record<string, unknown>;
+
+        const response = result.response as Record<string, unknown> | undefined;
+        const usage = response?.usageMetadata as Record<string, number> | undefined;
+        if (usage) {
+          s.recordTokens(
+            usage.promptTokenCount ?? 0,
+            usage.candidatesTokenCount ?? 0,
+            modelId,
+          );
+        }
+
+        const prompt = args[0];
+        const inputText = typeof prompt === "string"
+          ? prompt
+          : Array.isArray(prompt)
+            ? (prompt as Array<{ text?: string }>).map((p) => p.text ?? "").join("\n")
+            : JSON.stringify(prompt);
+
+        const responseText = typeof response?.text === "function"
+          ? (response.text as () => string)()
+          : undefined;
+
+        if (inputText || responseText) {
+          s.recordPrompt(inputText ?? "", responseText ?? "");
+        }
+
+        return result;
+      });
+    };
+
+    model.__dottle_wrapped = true;
+    return model;
+  };
 
   client.__dottle_wrapped = true;
   return client;

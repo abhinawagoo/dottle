@@ -1,11 +1,13 @@
 {
   "name": "dottle-sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Dottle SDK for JavaScript/TypeScript — instrument your AI agents in 3 lines of code",
   "main": "dist/index.js",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
+      "import": "./dist/index.js",
       "require": "./dist/index.js",
       "types": "./dist/index.d.ts"
     }

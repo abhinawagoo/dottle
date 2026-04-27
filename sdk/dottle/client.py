@@ -142,6 +142,9 @@ class AgentLoopClient:
                 # Trigger immediate flush on next opportunity
                 pass
 
+    # Alias used by framework integrations (crewai, autogen, agno)
+    _buffer_span = add_span
+
     # ── Flush ────────────────────────────────────────────────────────────────
 
     def _flush(self, session_id: str | None = None) -> None:

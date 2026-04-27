@@ -21,10 +21,10 @@
 import { DottleConfig, SpanType, SessionOptions } from "./types";
 import { DottleClient, getClient, initClient } from "./client";
 import { SpanContext, runSpan, runWithStore, getCurrentStore } from "./span";
-import { wrapOpenAI, wrapAnthropic } from "./wrappers";
+import { wrapOpenAI, wrapAnthropic, wrapGroq, wrapGemini } from "./wrappers";
 
 export { DottleConfig, SpanType, SpanContext, SessionOptions };
-export { wrapOpenAI, wrapAnthropic };
+export { wrapOpenAI, wrapAnthropic, wrapGroq, wrapGemini };
 
 // ── configure ──────────────────────────────────────────────────────────────────
 
@@ -121,6 +121,8 @@ const dottle = {
   wrapTool,
   wrapOpenAI,
   wrapAnthropic,
+  wrapGroq,
+  wrapGemini,
   shutdown,
   getCurrentSessionId,
 };
