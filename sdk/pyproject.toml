@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dottle-sdk"
-version = "0.1.3"
+version = "0.1.4"
 description = "Dottle SDK — Instrument your AI agents in 3 lines of code. See every LLM call, tool, cost, and failure in real time."
 readme = "README.md"
 license = { text = "MIT" }

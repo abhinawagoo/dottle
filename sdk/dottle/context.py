@@ -63,6 +63,9 @@ class SpanContext:
         self.error_message = message
         self.error_type = error_type
 
+    # Alias — both names work
+    record_error = set_error
+
     def _to_payload(self) -> SpanPayload:
         ended_at = datetime.now(timezone.utc)
         duration_ms = int((ended_at - self.started_at).total_seconds() * 1000)

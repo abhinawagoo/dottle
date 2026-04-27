@@ -54,6 +54,7 @@ def detect_all(snapshot: SessionSnapshot) -> list[IssueResult]:
     issues: list[IssueResult] = []
 
     issues.extend(_detect_session_failed(snapshot))
+    issues.extend(_detect_span_errors(snapshot))
     issues.extend(_detect_loop(snapshot))
     issues.extend(_detect_high_latency(snapshot))
     issues.extend(_detect_high_cost(snapshot))
@@ -86,6 +87,54 @@ def _detect_session_failed(s: SessionSnapshot) -> list[IssueResult]:
             f"Ensure exceptions are caught and the session is closed gracefully."
         ),
     )]
+
+
+def _detect_span_errors(s: SessionSnapshot) -> list[IssueResult]:
+    """
+    Surface spans that have status='error' even when the overall session is 'completed'.
+    This catches cases where the agent caught an exception internally and recorded it
+    via span.set_error() / span.record_error() without propagating it to the session.
+    """
+    # If session already failed, _detect_session_failed handles it at session level
+    if s.status == "failed":
+        return []
+
+    error_spans = [sp for sp in s.spans if sp.get("status") == "error"]
+    if not error_spans:
+        return []
+
+    issues = []
+    for sp in error_spans:
+        name = sp.get("name", "unknown")
+        span_type = sp.get("span_type", "span")
+        err_type = sp.get("error_type") or "Error"
+        err_msg = sp.get("error_message") or "No details available."
+        span_id = sp.get("id")
+
+        # Severity: llm/agent errors are higher priority than tool errors
+        if span_type in ("llm", "agent"):
+            severity = "high"
+        elif span_type == "tool":
+            severity = "medium"
+        else:
+            severity = "medium"
+
+        issues.append(IssueResult(
+            issue_type="span_error",
+            severity=severity,
+            title=f"Error in `{name}` — {err_type}",
+            description=(
+                f"The span **{name}** (type: `{span_type}`) completed with an error "
+                f"even though the session status is `{s.status}`.\n\n"
+                f"**Error type:** `{err_type}`\n"
+                f"**Message:** {err_msg}\n\n"
+                f"The agent caught this exception internally. Open the trace timeline "
+                f"and inspect this span to see the full stack trace."
+            ),
+            span_id=span_id,
+        ))
+
+    return issues
 
 
 def _detect_loop(s: SessionSnapshot) -> list[IssueResult]:
