@@ -5,8 +5,9 @@ import { useAuth } from "@/lib/auth-context";
 import { orgsApi, projectsApi } from "@/lib/api";
 import {
   Zap, ArrowRight, ArrowLeft, Check, Plus, X,
-  Slack, Bell, Users, Target, BookOpen, TrendingUp,
-  AlertTriangle, ThumbsUp, ShieldOff, Brain, Flame, Frown, Ban, Laugh
+  Slack, Bell, Users, Target, BookOpen,
+  AlertTriangle, ThumbsUp, ShieldOff, Brain, Flame, Frown, Ban, Laugh,
+  Copy, CheckCheck, Terminal, Code2
 } from "lucide-react";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
@@ -17,6 +18,234 @@ interface OnboardingData {
   product_description: string;
   tracked_issues: string[];
   invited_emails: string[];
+}
+
+// ── Framework catalogue ───────────────────────────────────────────────────────
+
+type FrameworkCategory = "all" | "framework" | "sdk";
+
+interface Framework {
+  id: string;
+  label: string;
+  category: "framework" | "sdk";
+  emoji: string;
+  badge?: string;
+  install: string;
+  snippet: string;
+}
+
+const FRAMEWORKS: Framework[] = [
+  {
+    id: "python",
+    label: "Python SDK",
+    category: "sdk",
+    emoji: "🐍",
+    install: "pip install dottle",
+    snippet:
+`import dottle
+
+dottle.configure(api_key="dtl_live_YOUR_KEY")
+
+with dottle.session("my-agent") as session_id:
+    # your agent code here
+    response = your_agent.run("Hello!")`,
+  },
+  {
+    id: "crewai",
+    label: "CrewAI",
+    category: "framework",
+    emoji: "⚡",
+    install: "pip install dottle crewai",
+    snippet:
+`import dottle
+from dottle.integrations.crewai import instrument_crew
+
+dottle.configure(api_key="dtl_live_YOUR_KEY")
+
+crew = Crew(agents=[...], tasks=[...])
+instrument_crew(crew)   # one line — done
+
+with dottle.session("my-crew"):
+    crew.kickoff(inputs={"topic": "AI trends"})`,
+  },
+  {
+    id: "autogen",
+    label: "AutoGen",
+    category: "framework",
+    emoji: "🤖",
+    install: "pip install dottle pyautogen",
+    snippet:
+`import dottle
+from dottle.integrations.autogen import instrument_agent
+
+dottle.configure(api_key="dtl_live_YOUR_KEY")
+
+agent = ConversableAgent("assistant", llm_config={...})
+instrument_agent(agent)   # patches generate_reply automatically
+
+with dottle.session("my-agent"):
+    agent.initiate_chat(user_proxy, message="Hello!")`,
+  },
+  {
+    id: "agno",
+    label: "Agno",
+    category: "framework",
+    emoji: "🧠",
+    install: "pip install dottle agno anthropic",
+    snippet:
+`import dottle
+from dottle.integrations.agno import instrument_agno_agent
+from agno.agent import Agent
+from agno.models.anthropic import Claude
+
+dottle.configure(api_key="dtl_live_YOUR_KEY")
+
+agent = Agent(
+    model=Claude(id="claude-sonnet-4-6"),
+    instructions="You are a helpful assistant.",
+)
+instrument_agno_agent(agent)
+
+with dottle.session("my-agent"):
+    agent.run("What is the capital of France?")`,
+  },
+  {
+    id: "rest",
+    label: "REST API",
+    category: "sdk",
+    emoji: "🔗",
+    install: "# No install needed — use any HTTP client",
+    snippet:
+`curl -X POST https://api.dottle.dev/api/v1/ingest/spans \\
+  -H "Authorization: Bearer dtl_live_YOUR_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "spans": [{
+      "session_id": "ses_abc123",
+      "span_type": "llm",
+      "name": "gpt-4o call",
+      "started_at": "2026-01-01T00:00:00Z",
+      "ended_at": "2026-01-01T00:00:01Z",
+      "input_text": "Hello!",
+      "output_text": "Hi there! How can I help?"
+    }]
+  }'`,
+  },
+];
+
+const CATEGORY_TABS: { id: FrameworkCategory; label: string }[] = [
+  { id: "all",       label: "All"               },
+  { id: "framework", label: "Agent frameworks"  },
+  { id: "sdk",       label: "SDK / REST"        },
+];
+
+// ── Step: Connect your stack ──────────────────────────────────────────────────
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+  return (
+    <button onClick={copy} className="flex items-center gap-1.5 text-[11px] text-ink-dim hover:text-ink-muted transition-colors">
+      {copied ? <CheckCheck className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+      {copied ? "Copied!" : "Copy"}
+    </button>
+  );
+}
+
+function StepConnect() {
+  const [tab, setTab] = useState<FrameworkCategory>("all");
+  const [selected, setSelected] = useState<Framework>(FRAMEWORKS[0]);
+
+  const visible = tab === "all" ? FRAMEWORKS : FRAMEWORKS.filter(f => f.category === tab);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-semibold text-ink-primary mb-2">Connect your stack</h2>
+        <p className="text-base text-ink-muted">Pick your framework to get a tailored snippet. Copy it into your project and you're tracing.</p>
+      </div>
+
+      {/* Category tabs */}
+      <div className="flex gap-1 p-1 bg-dark-raised rounded-xl border border-dark-border w-fit">
+        {CATEGORY_TABS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`px-3.5 py-1.5 rounded-lg text-[12px] font-medium transition-all ${
+              tab === t.id
+                ? "bg-dark-surface text-ink-primary shadow-sm"
+                : "text-ink-muted hover:text-ink-secondary"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Framework grid */}
+      <div className="grid grid-cols-5 gap-2">
+        {visible.map(fw => (
+          <button
+            key={fw.id}
+            onClick={() => setSelected(fw)}
+            className={`flex flex-col items-center gap-2 py-3.5 px-2 rounded-xl border text-center transition-all ${
+              selected.id === fw.id
+                ? "border-brand-500/60 bg-brand-600/10"
+                : "border-dark-border bg-dark-raised hover:border-dark-border/80"
+            }`}
+          >
+            <span className="text-2xl leading-none">{fw.emoji}</span>
+            <span className={`text-[11px] font-medium leading-tight ${selected.id === fw.id ? "text-ink-primary" : "text-ink-muted"}`}>
+              {fw.label}
+            </span>
+            {fw.badge && (
+              <span className="text-[9px] px-1.5 py-0.5 bg-brand-600/20 text-brand-400 rounded-full">{fw.badge}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Install */}
+      <div className="rounded-xl border border-dark-border bg-dark-bg overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-dark-border bg-dark-raised/40">
+          <div className="flex items-center gap-2">
+            <Terminal className="w-3.5 h-3.5 text-ink-dim" />
+            <span className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide">Install</span>
+          </div>
+          <CopyButton text={selected.install} />
+        </div>
+        <pre className="px-4 py-3 text-[12px] font-mono text-green-400 leading-relaxed overflow-x-auto">
+          {selected.install}
+        </pre>
+      </div>
+
+      {/* Snippet */}
+      <div className="rounded-xl border border-dark-border bg-dark-bg overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-dark-border bg-dark-raised/40">
+          <div className="flex items-center gap-2">
+            <Code2 className="w-3.5 h-3.5 text-ink-dim" />
+            <span className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide">
+              {selected.id === "rest" ? "Example request" : "Code snippet"}
+            </span>
+          </div>
+          <CopyButton text={selected.snippet} />
+        </div>
+        <pre className="px-4 py-4 text-[11.5px] font-mono text-ink-secondary leading-relaxed overflow-x-auto whitespace-pre">
+          {selected.snippet}
+        </pre>
+      </div>
+
+      <p className="text-[11px] text-ink-dim text-center">
+        Replace <code className="text-brand-400 bg-brand-600/10 px-1 py-0.5 rounded">dtl_live_YOUR_KEY</code> with your API key from{" "}
+        <span className="text-ink-muted">Settings → API Keys</span>
+      </p>
+    </div>
+  );
 }
 
 // ── Issue options ─────────────────────────────────────────────────────────────
@@ -116,56 +345,6 @@ function StepTeamSetup({ emails, onChange }: { emails: string[]; onChange: (v: s
           <p className="text-sm text-ink-dim">Invites are sent by email. They'll join your organization when they accept.</p>
         </div>
       )}
-    </div>
-  );
-}
-
-function StepDailyDigest() {
-  return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-semibold text-ink-primary mb-3">Your daily digest</h2>
-        <p className="text-base text-ink-muted">Every morning you'll get a summary of what your AI agents did — wins, issues, and trends.</p>
-      </div>
-      {/* Mock digest preview */}
-      <div className="bg-dark-raised border border-dark-border rounded-xl p-6 space-y-5">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-ink-secondary">Yesterday's summary</span>
-          <span className="text-xs text-ink-dim">Apr 18, 2026</span>
-        </div>
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { label: "Sessions",  value: "1,284", delta: "+12%", up: true  },
-            { label: "Failures",  value: "23",    delta: "-8%",  up: false },
-            { label: "Avg cost",  value: "$0.04", delta: "+2%",  up: true  },
-          ].map((m) => (
-            <div key={m.label} className="bg-dark-bg rounded-lg p-4">
-              <p className="text-xs text-ink-dim mb-1.5">{m.label}</p>
-              <p className="text-xl font-semibold text-ink-primary">{m.value}</p>
-              <p className={`text-xs mt-1 ${m.up ? "text-green-400" : "text-red-400"}`}>{m.delta} vs prev</p>
-            </div>
-          ))}
-        </div>
-        <div className="space-y-2.5">
-          <p className="text-sm font-medium text-ink-secondary">Top issues</p>
-          {[
-            { type: "loop_detected",      count: 14, color: "bg-red-400"    },
-            { type: "high_latency",       count: 8,  color: "bg-yellow-400" },
-            { type: "repeated_tool_error",count: 5,  color: "bg-orange-400" },
-          ].map((issue) => (
-            <div key={issue.type} className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className={`w-2 h-2 rounded-full ${issue.color}`} />
-                <span className="text-sm text-ink-muted">{issue.type.replace(/_/g, " ")}</span>
-              </div>
-              <span className="text-sm text-ink-secondary">{issue.count} sessions</span>
-            </div>
-          ))}
-        </div>
-        <div className="pt-3 border-t border-dark-divider">
-          <p className="text-xs text-ink-dim">💡 <span className="text-ink-muted">Your pest_control agent improved response time by 340ms after the prompt update yesterday.</span></p>
-        </div>
-      </div>
     </div>
   );
 }
@@ -278,9 +457,9 @@ function StepSlack({ projectId }: { projectId: string | null }) {
 
 const STEPS = [
   { id: "product",  label: "Product",  icon: BookOpen  },
-  { id: "team",     label: "Team",     icon: Users     },
-  { id: "digest",   label: "Digest",   icon: TrendingUp},
+  { id: "connect",  label: "Connect",  icon: Code2     },
   { id: "issues",   label: "Issues",   icon: Target    },
+  { id: "team",     label: "Team",     icon: Users     },
   { id: "slack",    label: "Slack",    icon: Bell      },
 ];
 
@@ -419,17 +598,17 @@ export default function OnboardingPage() {
               onChange={(v) => patch("product_description", v)}
             />
           )}
-          {step === 1 && (
-            <StepTeamSetup
-              emails={data.invited_emails}
-              onChange={(v) => patch("invited_emails", v)}
-            />
-          )}
-          {step === 2 && <StepDailyDigest />}
-          {step === 3 && (
+          {step === 1 && <StepConnect />}
+          {step === 2 && (
             <StepIssues
               selected={data.tracked_issues}
               onChange={(v) => patch("tracked_issues", v)}
+            />
+          )}
+          {step === 3 && (
+            <StepTeamSetup
+              emails={data.invited_emails}
+              onChange={(v) => patch("invited_emails", v)}
             />
           )}
           {step === 4 && (
