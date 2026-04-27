@@ -12,13 +12,16 @@ POST /datasets/{id}/runs            — trigger a dataset run (evaluate all item
 GET  /datasets/{id}/runs            — list runs
 DELETE /datasets/{id}               — delete dataset
 """
+import csv
+import io
+import json
 import uuid
 import httpx
 import structlog
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -365,6 +368,110 @@ async def list_runs(
         .order_by(DatasetRun.created_at.desc())
     )
     return [_run_out(r) for r in result.scalars()]
+
+
+@router.post("/{dataset_id}/items/import")
+async def import_items(
+    dataset_id: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Bulk-import items from a CSV or JSON file.
+
+    CSV: must have an `input` column; `expected_output` is optional.
+         Any other columns are stored in metadata.
+
+    JSON: an array of objects with `input` (string or object) and
+          optionally `expected_output` (string).
+    """
+    # ── Read file content ──────────────────────────────────────────────────────
+    content = await file.read()
+    filename = (file.filename or "").lower()
+    is_csv = filename.endswith(".csv") or (file.content_type or "").startswith("text/csv")
+    is_json = filename.endswith(".json") or "json" in (file.content_type or "")
+
+    if not is_csv and not is_json:
+        # Sniff: if content starts with '[' or '{', treat as JSON
+        stripped = content.lstrip()
+        if stripped and stripped[0:1] in (b"[", b"{"):
+            is_json = True
+        else:
+            is_csv = True
+
+    # ── Parse rows ─────────────────────────────────────────────────────────────
+    rows: list[dict] = []
+    parse_errors: list[str] = []
+
+    if is_json:
+        try:
+            parsed = json.loads(content.decode("utf-8-sig"))
+            if isinstance(parsed, dict):
+                parsed = [parsed]
+            if not isinstance(parsed, list):
+                raise ValueError("JSON must be an array of objects")
+            rows = parsed
+        except Exception as exc:
+            raise HTTPException(400, f"Invalid JSON: {exc}")
+    else:
+        try:
+            text = content.decode("utf-8-sig")
+            reader = csv.DictReader(io.StringIO(text))
+            if "input" not in (reader.fieldnames or []):
+                raise HTTPException(400, "CSV must have an 'input' column")
+            rows = [dict(row) for row in reader]
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(400, f"Invalid CSV: {exc}")
+
+    # ── Insert items ───────────────────────────────────────────────────────────
+    did = uuid.UUID(dataset_id)
+    d_r = await db.execute(select(Dataset).where(Dataset.id == did))
+    dataset = d_r.scalar_one_or_none()
+    if not dataset:
+        raise HTTPException(404, "Dataset not found")
+
+    imported = 0
+    failed = 0
+
+    for idx, row in enumerate(rows):
+        try:
+            raw_input = row.get("input", row)
+            # If input is a string, try to parse as JSON; otherwise wrap it
+            if isinstance(raw_input, str):
+                try:
+                    input_data = json.loads(raw_input)
+                except json.JSONDecodeError:
+                    input_data = {"text": raw_input}
+            elif isinstance(raw_input, dict):
+                input_data = raw_input
+            else:
+                input_data = {"value": raw_input}
+
+            expected = row.get("expected_output") or None
+            if expected and not isinstance(expected, str):
+                expected = json.dumps(expected)
+
+            # Everything except input/expected_output goes into metadata
+            meta = {k: v for k, v in row.items() if k not in ("input", "expected_output") and v}
+
+            item = DatasetItem(
+                dataset_id=did,
+                input=input_data,
+                expected_output=str(expected) if expected else None,
+                metadata_=meta,
+            )
+            db.add(item)
+            imported += 1
+        except Exception as exc:
+            parse_errors.append(f"Row {idx + 1}: {exc}")
+            failed += 1
+
+    dataset.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    return {"imported": imported, "failed": failed, "errors": parse_errors[:20]}
 
 
 @router.delete("/{dataset_id}", status_code=204)

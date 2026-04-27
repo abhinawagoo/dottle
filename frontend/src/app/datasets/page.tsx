@@ -1,11 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { datasetsApi } from "@/lib/api";
 import { useProject } from "@/lib/project-context";
 import { DatasetSummary, DatasetDetail, DatasetRun } from "@/lib/types";
 import { clsx } from "clsx";
-import { Plus, Trash2, Database, Play, ChevronLeft, CheckCircle2, XCircle, Loader2, BarChart2 } from "lucide-react";
+import { Plus, Trash2, Database, Play, ChevronLeft, CheckCircle2, XCircle, Loader2, Upload, FileJson, FileSpreadsheet } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 // ── New dataset modal ─────────────────────────────────────────────────────────
@@ -43,6 +43,155 @@ function NewDatasetModal({ projectId, onClose }: { projectId: string; onClose: (
             className="px-4 py-2 bg-brand-600 text-white rounded-lg text-[13px] font-semibold hover:bg-brand-500 disabled:opacity-40">
             {create.isPending ? "Creating…" : "Create"}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Import modal ──────────────────────────────────────────────────────────────
+
+function ImportModal({ datasetId, onClose }: { datasetId: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [file, setFile] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [result, setResult] = useState<{ imported: number; failed: number; errors: string[] } | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const importMut = useMutation({
+    mutationFn: (f: File) => datasetsApi.importItems(datasetId, f),
+    onSuccess: (data) => {
+      setResult(data);
+      qc.invalidateQueries({ queryKey: ["dataset", datasetId] });
+    },
+  });
+
+  const handleFile = useCallback((f: File) => {
+    const ext = f.name.toLowerCase();
+    if (!ext.endsWith(".csv") && !ext.endsWith(".json")) {
+      alert("Please select a .csv or .json file.");
+      return;
+    }
+    setFile(f);
+    setResult(null);
+  }, []);
+
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  }, [handleFile]);
+
+  const isJson = file?.name.toLowerCase().endsWith(".json");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="w-full max-w-lg bg-dark-surface border border-dark-border rounded-2xl shadow-2xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-dark-border">
+          <h2 className="text-[15px] font-semibold text-ink-primary">Import items</h2>
+          <button onClick={onClose} className="text-ink-dim hover:text-ink-muted text-sm">✕</button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {/* Format hint */}
+          <div className="grid grid-cols-2 gap-3 text-[11px]">
+            <div className="rounded-lg border border-dark-border bg-dark-bg px-3 py-2.5">
+              <div className="flex items-center gap-1.5 mb-1">
+                <FileSpreadsheet className="w-3.5 h-3.5 text-green-400" />
+                <span className="font-semibold text-ink-secondary">CSV format</span>
+              </div>
+              <code className="text-ink-dim leading-relaxed block">input,expected_output<br />
+"Hello world","Hi there"<br />
+"Translate: cat","Le chat"</code>
+            </div>
+            <div className="rounded-lg border border-dark-border bg-dark-bg px-3 py-2.5">
+              <div className="flex items-center gap-1.5 mb-1">
+                <FileJson className="w-3.5 h-3.5 text-yellow-400" />
+                <span className="font-semibold text-ink-secondary">JSON format</span>
+              </div>
+              <code className="text-ink-dim leading-relaxed block">{"[{"}<br />
+&nbsp;&nbsp;"input": "Hello",<br />
+&nbsp;&nbsp;"expected_output": "Hi"<br />
+{"}]"}</code>
+            </div>
+          </div>
+
+          {/* Drop zone */}
+          <div
+            onDrop={onDrop}
+            onDragOver={e => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onClick={() => inputRef.current?.click()}
+            className={clsx(
+              "flex flex-col items-center justify-center gap-2 py-8 rounded-xl border-2 border-dashed cursor-pointer transition-colors",
+              dragging ? "border-brand-500 bg-brand-600/5" : "border-dark-border hover:border-dark-border/80 hover:bg-dark-raised/30"
+            )}
+          >
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".csv,.json,text/csv,application/json"
+              className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+            />
+            {file ? (
+              <div className="flex items-center gap-2">
+                {isJson
+                  ? <FileJson className="w-5 h-5 text-yellow-400" />
+                  : <FileSpreadsheet className="w-5 h-5 text-green-400" />
+                }
+                <span className="text-[13px] font-semibold text-ink-primary">{file.name}</span>
+                <span className="text-[11px] text-ink-dim">({(file.size / 1024).toFixed(1)} KB)</span>
+              </div>
+            ) : (
+              <>
+                <Upload className="w-6 h-6 text-ink-dim" />
+                <p className="text-[13px] text-ink-muted">Drop a file here or <span className="text-brand-400">click to browse</span></p>
+                <p className="text-[11px] text-ink-dim">.csv or .json</p>
+              </>
+            )}
+          </div>
+
+          {/* Result */}
+          {result && (
+            <div className={clsx(
+              "rounded-lg px-4 py-3 text-[12px]",
+              result.failed === 0 ? "bg-green-500/10 border border-green-500/20" : "bg-yellow-500/10 border border-yellow-500/20"
+            )}>
+              <p className="font-semibold text-ink-primary mb-1">
+                {result.imported} item{result.imported !== 1 ? "s" : ""} imported
+                {result.failed > 0 && `, ${result.failed} failed`}
+              </p>
+              {result.errors.length > 0 && (
+                <ul className="mt-1 space-y-0.5 text-ink-muted">
+                  {result.errors.map((e, i) => <li key={i}>{e}</li>)}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {importMut.isError && (
+            <p className="text-[12px] text-status-red">
+              {(importMut.error as Error)?.message || "Import failed"}
+            </p>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-dark-border">
+          <button onClick={onClose} className="px-4 py-2 text-[13px] text-ink-muted">
+            {result ? "Close" : "Cancel"}
+          </button>
+          {!result && (
+            <button
+              onClick={() => { if (file) importMut.mutate(file); }}
+              disabled={!file || importMut.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-lg text-[13px] font-semibold hover:bg-brand-500 disabled:opacity-40"
+            >
+              <Upload className="w-4 h-4" />
+              {importMut.isPending ? "Importing…" : "Import"}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -141,6 +290,7 @@ function RunRow({ run }: { run: DatasetRun }) {
 function DatasetDetailView({ datasetId, projectId, onBack }: { datasetId: string; projectId: string; onBack: () => void }) {
   const qc = useQueryClient();
   const [showRun, setShowRun] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["dataset", datasetId],
@@ -166,6 +316,10 @@ function DatasetDetailView({ datasetId, projectId, onBack }: { datasetId: string
           <h1 className="text-[20px] font-bold text-ink-primary">{data.name}</h1>
           {data.description && <p className="text-[12px] text-ink-muted">{data.description}</p>}
         </div>
+        <button onClick={() => setShowImport(true)}
+          className="flex items-center gap-2 px-4 py-2 border border-dark-border rounded-lg text-[13px] text-ink-secondary hover:bg-dark-raised transition-colors">
+          <Upload className="w-4 h-4" />Import
+        </button>
         <button onClick={() => setShowRun(true)}
           className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-lg text-[13px] font-semibold hover:bg-brand-500 transition-colors">
           <Play className="w-4 h-4" />Run eval
@@ -190,7 +344,11 @@ function DatasetDetailView({ datasetId, projectId, onBack }: { datasetId: string
         {data.items.length === 0 ? (
           <div className="text-center py-10 border-2 border-dashed border-dark-border rounded-xl">
             <p className="text-[13px] text-ink-muted">No items yet</p>
-            <p className="text-[11px] text-ink-dim mt-1">Add sessions from the Sessions page → "Add to dataset"</p>
+            <p className="text-[11px] text-ink-dim mt-1 mb-3">Add sessions from the Sessions page, or import a CSV/JSON file</p>
+            <button onClick={() => setShowImport(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-dark-border rounded-lg text-[12px] text-ink-secondary hover:bg-dark-raised transition-colors">
+              <Upload className="w-3.5 h-3.5" />Import CSV / JSON
+            </button>
           </div>
         ) : (
           <div className="space-y-2">
@@ -223,6 +381,7 @@ function DatasetDetailView({ datasetId, projectId, onBack }: { datasetId: string
       </div>
 
       {showRun && <RunModal datasetId={datasetId} onClose={() => setShowRun(false)} />}
+      {showImport && <ImportModal datasetId={datasetId} onClose={() => setShowImport(false)} />}
     </div>
   );
 }
