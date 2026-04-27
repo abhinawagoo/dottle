@@ -25,7 +25,8 @@ from app.routers.auth import get_current_user
 from app.models.user import User
 from app.models.experiment import Experiment, ExperimentRun
 from app.models.dataset import Dataset, DatasetItem
-from app.models.ai_provider import ProjectAIProvider
+from app.models.ai_provider import OrgAIProvider
+from app.models.project import Project
 from app.config import get_settings
 
 router = APIRouter(prefix="/experiments", tags=["experiments"])
@@ -319,17 +320,23 @@ async def _run_experiment(experiment_id: str, project_id: str):
             # Get API keys for each variant's provider
             from app.routers.playground import MODEL_TO_PROVIDER
 
+            # Resolve org_id from project
+            proj_r = await db.execute(select(Project).where(Project.id == uuid.UUID(project_id)))
+            proj = proj_r.scalar_one_or_none()
+            org_id = proj.org_id if proj else None
+
             async def get_key(model: str) -> str:
                 provider = MODEL_TO_PROVIDER.get(model, "anthropic")
-                r = await db.execute(
-                    select(ProjectAIProvider).where(
-                        ProjectAIProvider.project_id == uuid.UUID(project_id),
-                        ProjectAIProvider.provider == provider,
+                if org_id:
+                    r = await db.execute(
+                        select(OrgAIProvider).where(
+                            OrgAIProvider.org_id == org_id,
+                            OrgAIProvider.provider == provider,
+                        )
                     )
-                )
-                row = r.scalar_one_or_none()
-                if row:
-                    return row.api_key_enc
+                    row = r.scalar_one_or_none()
+                    if row:
+                        return row.api_key_enc
                 if provider == "anthropic" and settings.anthropic_api_key:
                     return settings.anthropic_api_key
                 raise ValueError(f"No API key for provider '{provider}'")
