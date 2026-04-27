@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import SessionAIChat from "@/components/ui/SessionAIChat";
 import TraceTimeline from "@/components/timeline/TraceTimeline";
 import { useProject } from "@/lib/project-context";
+import { useOrg } from "@/lib/org-context";
 import { format } from "date-fns";
 import Link from "next/link";
 import { clsx } from "clsx";
@@ -340,7 +341,7 @@ function AddToDatasetButton({ sessionId, projectId }: { sessionId: string; proje
 
 /* ── Playground panel ──────────────────────────────────────────────────────── */
 function PlaygroundPanel({ session }: { session: { id: string; spans: Span[] } }) {
-  const { selectedProject } = useProject();
+  const { selectedOrg } = useOrg();
   const lastLlm = [...session.spans].reverse().find(s => s.span_type === "llm");
   const [system, setSystem] = useState("");
   const [userMsg, setUserMsg] = useState(lastLlm?.input_text ?? "");
@@ -350,8 +351,8 @@ function PlaygroundPanel({ session }: { session: { id: string; spans: Span[] } }
   const [error, setError] = useState("");
 
   const { data: providerGroups = [] } = useQuery<ProviderModels[]>({
-    queryKey: ["playground-models", selectedProject?.id],
-    queryFn: () => playgroundApi.listModels(selectedProject?.id),
+    queryKey: ["playground-models", selectedOrg?.id],
+    queryFn: () => playgroundApi.listModels(selectedOrg?.id),
     staleTime: 60_000,
   });
 
@@ -364,7 +365,7 @@ function PlaygroundPanel({ session }: { session: { id: string; spans: Span[] } }
       if (userMsg.trim()) messages.push({ role: "user" as const, content: userMsg });
       const res = await playgroundApi.run({
         model, system: system || undefined, messages,
-        project_id: selectedProject?.id,
+        org_id: selectedOrg?.id,
       });
       setResult(res);
     } catch (e: unknown) {

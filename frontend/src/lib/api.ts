@@ -150,11 +150,11 @@ export interface ProviderModels {
 }
 
 export const playgroundApi = {
-  run: (body: { model: string; system?: string; messages: Array<{role: string; content: string}>; temperature?: number; max_tokens?: number; project_id?: string }) =>
+  run: (body: { model: string; system?: string; messages: Array<{role: string; content: string}>; temperature?: number; max_tokens?: number; org_id?: string }) =>
     api.post("/playground/run", body).then(r => r.data as PlaygroundResult),
 
-  listModels: (projectId?: string): Promise<ProviderModels[]> =>
-    api.get("/playground/models", { params: projectId ? { project_id: projectId } : {} }).then(r => r.data),
+  listModels: (orgId?: string): Promise<ProviderModels[]> =>
+    api.get("/playground/models", { params: orgId ? { org_id: orgId } : {} }).then(r => r.data),
 };
 
 // ── Experiments ───────────────────────────────────────────────────────────────
@@ -362,14 +362,14 @@ export interface AIProviderEntry {
 }
 
 export const aiProvidersApi = {
-  list: (projectId: string): Promise<AIProviderEntry[]> =>
-    api.get(`/projects/${projectId}/ai-providers`).then(r => r.data),
+  list: (orgId: string): Promise<AIProviderEntry[]> =>
+    api.get(`/orgs/${orgId}/ai-providers`).then(r => r.data),
 
-  upsert: (projectId: string, provider: string, api_key: string): Promise<void> =>
-    api.put(`/projects/${projectId}/ai-providers/${provider}`, { api_key }).then(r => r.data),
+  upsert: (orgId: string, provider: string, api_key: string): Promise<void> =>
+    api.put(`/orgs/${orgId}/ai-providers/${provider}`, { api_key }).then(r => r.data),
 
-  delete: (projectId: string, provider: string): Promise<void> =>
-    api.delete(`/projects/${projectId}/ai-providers/${provider}`).then(r => r.data),
+  delete: (orgId: string, provider: string): Promise<void> =>
+    api.delete(`/orgs/${orgId}/ai-providers/${provider}`).then(r => r.data),
 };
 
 // ── Alerts ───────────────────────────────────────────────────────────────────

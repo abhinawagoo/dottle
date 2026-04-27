@@ -55,24 +55,24 @@ const PROVIDER_META: Record<string, { label: string; color: string; bg: string; 
 
 function AIProvidersSection() {
   const qc = useQueryClient();
-  const { selectedProject } = useProject();
-  const PROJECT_ID = selectedProject?.id ?? "";
+  const { selectedOrg } = useOrg();
+  const ORG_ID = selectedOrg?.id ?? "";
 
   const [editing, setEditing] = useState<string | null>(null);
   const [keyInput, setKeyInput] = useState("");
   const [showKey, setShowKey] = useState(false);
 
   const { data: providers = [] } = useQuery<AIProviderEntry[]>({
-    queryKey: ["ai-providers", PROJECT_ID],
-    queryFn: () => aiProvidersApi.list(PROJECT_ID),
-    enabled: !!PROJECT_ID,
+    queryKey: ["ai-providers", ORG_ID],
+    queryFn: () => aiProvidersApi.list(ORG_ID),
+    enabled: !!ORG_ID,
   });
 
   const upsert = useMutation({
     mutationFn: ({ provider, api_key }: { provider: string; api_key: string }) =>
-      aiProvidersApi.upsert(PROJECT_ID, provider, api_key),
+      aiProvidersApi.upsert(ORG_ID, provider, api_key),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ai-providers", PROJECT_ID] });
+      qc.invalidateQueries({ queryKey: ["ai-providers", ORG_ID] });
       setEditing(null);
       setKeyInput("");
       setShowKey(false);
@@ -80,8 +80,8 @@ function AIProvidersSection() {
   });
 
   const remove = useMutation({
-    mutationFn: (provider: string) => aiProvidersApi.delete(PROJECT_ID, provider),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["ai-providers", PROJECT_ID] }),
+    mutationFn: (provider: string) => aiProvidersApi.delete(ORG_ID, provider),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ai-providers", ORG_ID] }),
   });
 
   function startEdit(provider: string) {
@@ -90,8 +90,8 @@ function AIProvidersSection() {
     setShowKey(false);
   }
 
-  if (!PROJECT_ID) {
-    return <p className="text-sm text-ink-muted">Select a project first.</p>;
+  if (!ORG_ID) {
+    return <p className="text-sm text-ink-muted">Select an organization first.</p>;
   }
 
   return (

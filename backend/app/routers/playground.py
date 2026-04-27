@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.routers.auth import get_current_user
 from app.models.user import User
-from app.models.ai_provider import ProjectAIProvider
+from app.models.ai_provider import OrgAIProvider
 from app.database import get_db
 from app.config import get_settings
 
@@ -102,7 +102,7 @@ class PlaygroundRunRequest(BaseModel):
     messages: list[Message]
     temperature: float = 1.0
     max_tokens: int = 1024
-    project_id: Optional[str] = None   # needed to look up stored API key
+    org_id: Optional[str] = None   # used to look up org-level AI provider keys
 
 
 class PlaygroundRunResponse(BaseModel):
@@ -116,19 +116,19 @@ class PlaygroundRunResponse(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-async def _get_api_key(provider: str, project_id: Optional[str], db: AsyncSession) -> str:
-    """Return stored key for provider, falling back to env var for Anthropic."""
-    if project_id:
+async def _get_api_key(provider: str, org_id: Optional[str], db: AsyncSession) -> str:
+    """Return stored org-level key for provider, falling back to env var for Anthropic."""
+    if org_id:
         import uuid as _uuid
         try:
-            pid = _uuid.UUID(project_id)
+            oid = _uuid.UUID(org_id)
         except ValueError:
-            pid = None
-        if pid:
+            oid = None
+        if oid:
             result = await db.execute(
-                select(ProjectAIProvider).where(
-                    ProjectAIProvider.project_id == pid,
-                    ProjectAIProvider.provider == provider,
+                select(OrgAIProvider).where(
+                    OrgAIProvider.org_id == oid,
+                    OrgAIProvider.provider == provider,
                 )
             )
             row = result.scalar_one_or_none()
@@ -154,18 +154,18 @@ def _calc_cost(model: str, input_tokens: int, output_tokens: int) -> float:
 
 @router.get("/models")
 async def list_models(
-    project_id: Optional[str] = None,
+    org_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
     """Return all providers and their models, marking which ones have a key configured."""
     configured: set[str] = {"anthropic"}  # server key always available
-    if project_id:
+    if org_id:
         import uuid as _uuid
         try:
-            pid = _uuid.UUID(project_id)
+            oid = _uuid.UUID(org_id)
             result = await db.execute(
-                select(ProjectAIProvider.provider).where(ProjectAIProvider.project_id == pid)
+                select(OrgAIProvider.provider).where(OrgAIProvider.org_id == oid)
             )
             configured.update(r for r, in result.all())
         except ValueError:
@@ -191,7 +191,7 @@ async def run_playground(
     if not provider:
         raise HTTPException(400, f"Unknown model '{body.model}'")
 
-    api_key = await _get_api_key(provider, body.project_id, db)
+    api_key = await _get_api_key(provider, body.org_id, db)
 
     # ── Anthropic ──
     if provider == "anthropic":

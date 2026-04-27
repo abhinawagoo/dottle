@@ -1,10 +1,10 @@
 """
-AI Provider key management per project.
+AI Provider key management — organization-level secrets.
 
 Endpoints:
-  GET    /projects/{project_id}/ai-providers            list all providers (masked keys)
-  PUT    /projects/{project_id}/ai-providers/{provider} upsert a key
-  DELETE /projects/{project_id}/ai-providers/{provider} remove a key
+  GET    /orgs/{org_id}/ai-providers            list all providers (masked keys)
+  PUT    /orgs/{org_id}/ai-providers/{provider} upsert a key
+  DELETE /orgs/{org_id}/ai-providers/{provider} remove a key
 """
 from datetime import datetime
 from typing import Optional
@@ -15,11 +15,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 
 from app.database import get_db
-from app.models.ai_provider import ProjectAIProvider
+from app.models.ai_provider import OrgAIProvider
 from app.routers.auth import get_current_user
 from app.models.user import User
 
-router = APIRouter(prefix="/projects", tags=["ai-providers"])
+router = APIRouter(prefix="/orgs", tags=["ai-providers"])
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
@@ -51,7 +51,6 @@ PROVIDER_IDS = {p["provider"] for p in PROVIDERS}
 
 
 def _mask(key: str) -> str:
-    """Return last-4-chars masked key, e.g. sk-...xYZ1"""
     if len(key) <= 8:
         return "••••" + key[-2:]
     return "••••••••" + key[-4:]
@@ -59,32 +58,31 @@ def _mask(key: str) -> str:
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
-@router.get("/{project_id}/ai-providers", response_model=list[AIProviderOut])
+@router.get("/{org_id}/ai-providers", response_model=list[AIProviderOut])
 async def list_providers(
-    project_id: str,
+    org_id: str,
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(ProjectAIProvider).where(ProjectAIProvider.project_id == project_id)
+        select(OrgAIProvider).where(OrgAIProvider.org_id == uuid.UUID(org_id))
     )
     stored = {row.provider: row for row in result.scalars().all()}
 
-    out = []
-    for p in PROVIDERS:
-        row = stored.get(p["provider"])
-        out.append(AIProviderOut(
+    return [
+        AIProviderOut(
             provider=p["provider"],
             env_var=p["env_var"],
-            api_key_masked=_mask(row.api_key_enc) if row else None,
+            api_key_masked=_mask(row.api_key_enc) if (row := stored.get(p["provider"])) else None,
             updated_at=row.updated_at.isoformat() if row else None,
-        ))
-    return out
+        )
+        for p in PROVIDERS
+    ]
 
 
-@router.put("/{project_id}/ai-providers/{provider}")
+@router.put("/{org_id}/ai-providers/{provider}")
 async def upsert_provider(
-    project_id: str,
+    org_id: str,
     provider: str,
     body: UpsertProviderBody,
     db: AsyncSession = Depends(get_db),
@@ -95,10 +93,11 @@ async def upsert_provider(
     if not body.api_key.strip():
         raise HTTPException(status_code=400, detail="api_key cannot be empty")
 
+    oid = uuid.UUID(org_id)
     result = await db.execute(
-        select(ProjectAIProvider).where(
-            ProjectAIProvider.project_id == project_id,
-            ProjectAIProvider.provider == provider,
+        select(OrgAIProvider).where(
+            OrgAIProvider.org_id == oid,
+            OrgAIProvider.provider == provider,
         )
     )
     row = result.scalar_one_or_none()
@@ -107,9 +106,9 @@ async def upsert_provider(
         row.api_key_enc = body.api_key.strip()
         row.updated_at = datetime.utcnow()
     else:
-        row = ProjectAIProvider(
+        row = OrgAIProvider(
             id=uuid.uuid4(),
-            project_id=uuid.UUID(project_id),
+            org_id=oid,
             provider=provider,
             api_key_enc=body.api_key.strip(),
         )
@@ -119,17 +118,17 @@ async def upsert_provider(
     return {"ok": True, "provider": provider}
 
 
-@router.delete("/{project_id}/ai-providers/{provider}")
+@router.delete("/{org_id}/ai-providers/{provider}")
 async def delete_provider(
-    project_id: str,
+    org_id: str,
     provider: str,
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
     await db.execute(
-        delete(ProjectAIProvider).where(
-            ProjectAIProvider.project_id == project_id,
-            ProjectAIProvider.provider == provider,
+        delete(OrgAIProvider).where(
+            OrgAIProvider.org_id == uuid.UUID(org_id),
+            OrgAIProvider.provider == provider,
         )
     )
     await db.commit()
