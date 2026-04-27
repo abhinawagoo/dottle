@@ -56,7 +56,7 @@ poetry run alembic upgrade head
 ### 3. Install the SDK
 
 ```bash
-pip install dottle
+pip install dottle-sdk
 # or from local source:
 pip install -e ./sdk
 ```

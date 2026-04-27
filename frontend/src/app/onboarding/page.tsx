@@ -40,7 +40,7 @@ const FRAMEWORKS: Framework[] = [
     label: "Python SDK",
     category: "sdk",
     emoji: "🐍",
-    install: "pip install dottle",
+    install: "pip install dottle-sdk",
     snippet:
 `import dottle
 
@@ -55,7 +55,7 @@ with dottle.session("my-agent") as session_id:
     label: "CrewAI",
     category: "framework",
     emoji: "⚡",
-    install: "pip install dottle crewai",
+    install: "pip install dottle-sdk crewai",
     snippet:
 `import dottle
 from dottle.integrations.crewai import instrument_crew
@@ -73,7 +73,7 @@ with dottle.session("my-crew"):
     label: "AutoGen",
     category: "framework",
     emoji: "🤖",
-    install: "pip install dottle pyautogen",
+    install: "pip install dottle-sdk pyautogen",
     snippet:
 `import dottle
 from dottle.integrations.autogen import instrument_agent
@@ -91,7 +91,7 @@ with dottle.session("my-agent"):
     label: "Agno",
     category: "framework",
     emoji: "🧠",
-    install: "pip install dottle agno anthropic",
+    install: "pip install dottle-sdk agno anthropic",
     snippet:
 `import dottle
 from dottle.integrations.agno import instrument_agno_agent
