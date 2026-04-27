@@ -342,6 +342,54 @@ async def get_user_analytics(
     return {"users": users, "total": len(users)}
 
 
+@router.get("/agents")
+async def get_agent_breakdown(
+    project_id: uuid.UUID,
+    from_: datetime | None = Query(None, alias="from"),
+    to: datetime | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Per-agent session stats for the dashboard agent-health grid."""
+    from_ = from_ or _default_from()
+    to = to or datetime.now(timezone.utc)
+
+    result = await db.execute(
+        select(
+            AgentSession.agent_name,
+            func.count(AgentSession.id).label("session_count"),
+            func.coalesce(func.sum(AgentSession.total_cost_usd), 0).label("total_cost_usd"),
+            func.coalesce(func.avg(AgentSession.total_cost_usd), 0).label("avg_cost_usd"),
+            func.coalesce(func.avg(AgentSession.duration_ms), 0).label("avg_latency_ms"),
+            func.count(AgentSession.id).filter(AgentSession.status == "failed").label("failed_count"),
+            func.count(AgentSession.id).filter(AgentSession.loop_detected == True).label("loop_count"),  # noqa: E712
+            func.max(AgentSession.started_at).label("last_seen"),
+        )
+        .where(
+            AgentSession.project_id == project_id,
+            AgentSession.started_at >= from_,
+            AgentSession.started_at <= to,
+        )
+        .group_by(AgentSession.agent_name)
+        .order_by(func.count(AgentSession.id).desc())
+        .limit(20)
+    )
+    rows = result.all()
+
+    return [
+        {
+            "agent_name": r.agent_name,
+            "session_count": r.session_count,
+            "total_cost_usd": float(r.total_cost_usd),
+            "avg_cost_usd": float(r.avg_cost_usd),
+            "avg_latency_ms": float(r.avg_latency_ms),
+            "error_rate_pct": round(r.failed_count / r.session_count * 100, 1) if r.session_count else 0,
+            "loop_rate_pct": round(r.loop_count / r.session_count * 100, 1) if r.session_count else 0,
+            "last_seen": r.last_seen.isoformat() if r.last_seen else None,
+        }
+        for r in rows
+    ]
+
+
 @router.get("/latency", response_model=LatencyDistributionResponse)
 async def get_latency_distribution(
     project_id: uuid.UUID,

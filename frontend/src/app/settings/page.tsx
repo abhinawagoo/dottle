@@ -53,6 +53,18 @@ const PROVIDER_META: Record<string, { label: string; color: string; bg: string; 
   cohere:    { label: "Cohere",        color: "#6366f1", bg: "#6366f118", initial: "C" },
 };
 
+// Static provider catalogue — shown immediately; API overlays configured status
+const STATIC_PROVIDERS: AIProviderEntry[] = [
+  { provider: "openai",    env_var: "OPENAI_API_KEY",    api_key_masked: null, updated_at: null },
+  { provider: "anthropic", env_var: "ANTHROPIC_API_KEY", api_key_masked: null, updated_at: null },
+  { provider: "gemini",    env_var: "GEMINI_API_KEY",    api_key_masked: null, updated_at: null },
+  { provider: "mistral",   env_var: "MISTRAL_API_KEY",   api_key_masked: null, updated_at: null },
+  { provider: "together",  env_var: "TOGETHER_API_KEY",  api_key_masked: null, updated_at: null },
+  { provider: "fireworks", env_var: "FIREWORKS_API_KEY", api_key_masked: null, updated_at: null },
+  { provider: "groq",      env_var: "GROQ_API_KEY",      api_key_masked: null, updated_at: null },
+  { provider: "cohere",    env_var: "COHERE_API_KEY",     api_key_masked: null, updated_at: null },
+];
+
 function AIProvidersSection() {
   const qc = useQueryClient();
   const { selectedOrg } = useOrg();
@@ -62,11 +74,14 @@ function AIProvidersSection() {
   const [keyInput, setKeyInput] = useState("");
   const [showKey, setShowKey] = useState(false);
 
-  const { data: providers = [] } = useQuery<AIProviderEntry[]>({
+  const { data: apiProviders, isError } = useQuery<AIProviderEntry[]>({
     queryKey: ["ai-providers", ORG_ID],
     queryFn: () => aiProvidersApi.list(ORG_ID),
     enabled: !!ORG_ID,
   });
+
+  // Merge: use API data if available, fall back to static list
+  const providers: AIProviderEntry[] = apiProviders ?? STATIC_PROVIDERS;
 
   const upsert = useMutation({
     mutationFn: ({ provider, api_key }: { provider: string; api_key: string }) =>
@@ -103,6 +118,21 @@ function AIProvidersSection() {
           Store API keys for AI providers — used by evaluators, playground, and experiments.
         </p>
       </div>
+
+      {/* DB error banner */}
+      {isError && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3 text-xs">
+          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-amber-300">Could not load saved keys from the database</p>
+            <p className="text-amber-400/80 mt-0.5">
+              Run <code className="font-mono bg-amber-500/10 px-1 rounded">alembic upgrade head</code> in the{" "}
+              <code className="font-mono bg-amber-500/10 px-1 rounded">backend/</code> directory, then refresh.
+              Providers are shown below — you can still save keys once the migration is applied.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Model providers table */}
       <div>
@@ -362,7 +392,7 @@ function GitHubSection() {
 
 function ProjectsSection() {
   const qc = useQueryClient();
-  const { user } = useAuth();
+  useAuth();
   const { selectedOrg } = useOrg();
   const [copied, setCopied] = useState<string | null>(null);
   const [newName, setNewName] = useState("");

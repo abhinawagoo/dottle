@@ -260,6 +260,9 @@ export const metricsApi = {
   latency: (projectId: string, from?: string, to?: string) =>
     api.get("/metrics/latency", { params: { project_id: projectId, from, to } }).then(r => r.data),
 
+  agents: (projectId: string, from?: string, to?: string): Promise<import("./types").AgentStat[]> =>
+    api.get("/metrics/agents", { params: { project_id: projectId, from, to } }).then(r => r.data),
+
   regression: (params: {
     project_id: string;
     agent_name?: string;

@@ -197,6 +197,19 @@ export interface UserAnalyticsResponse {
   total: number;
 }
 
+// ── Agent breakdown ───────────────────────────────────────────────────────────
+
+export interface AgentStat {
+  agent_name: string;
+  session_count: number;
+  total_cost_usd: number;
+  avg_cost_usd: number;
+  avg_latency_ms: number;
+  error_rate_pct: number;
+  loop_rate_pct: number;
+  last_seen: string | null;
+}
+
 // ── Code Fixes ───────────────────────────────────────────────────────────────
 
 export interface GitHubConfig {
