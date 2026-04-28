@@ -14,7 +14,7 @@ import {
   FlaskConical, Telescope, Trash2, Columns, Check, Eye, EyeOff,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { Group, Panel, Separator } from "react-resizable-panels";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 
 // ── Column visibility state ────────────────────────────────────────────────────
 
@@ -831,56 +831,59 @@ function DatasetDetailView({ datasetId, orgId, onBack }: {
         <span className="ml-auto text-[11px] text-ink-muted pl-2">{filtered.length} rows</span>
       </div>
 
-      {/* Main content — split pane */}
-      <div className="flex-1 overflow-hidden" style={{ minHeight: 0 }}>
-        {data.items.length === 0 ? (
-          /* Empty state — full import zone */
-          <div className="h-full flex flex-col items-center justify-center gap-4 px-8">
-            <div className="text-center mb-2">
-              <p className="text-[18px] font-semibold text-ink-primary">This dataset is empty</p>
-              <p className="text-[13px] text-ink-muted mt-1.5">
-                To populate this dataset, manually{" "}
-                <button className="text-brand-400 hover:underline">create a row</button>,{" "}
-                <button onClick={() => setShowImport(true)} className="text-brand-400 hover:underline">upload a CSV/JSON file</button>,{" "}
-                or{" "}
-                <button className="text-brand-400 hover:underline">insert data programmatically</button>
-              </p>
-            </div>
-            <div
-              onClick={() => setShowImport(true)}
-              className="w-full max-w-xl rounded-2xl border-2 border-dashed border-dark-border hover:border-dark-border/80 hover:bg-dark-raised/10 cursor-pointer transition-all flex flex-col items-center justify-center gap-3 py-14 px-8"
-            >
-              <Upload className="w-8 h-8 text-ink-muted" />
-              <p className="text-[14px] text-ink-muted text-center">Drag and drop CSV or JSON file here,<br />or click to select</p>
-            </div>
+      {/* Main content — takes remaining height as direct flex child */}
+      {data.items.length === 0 ? (
+        /* Empty state */
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8" style={{ minHeight: 0 }}>
+          <div className="text-center mb-2">
+            <p className="text-[18px] font-semibold text-ink-primary">This dataset is empty</p>
+            <p className="text-[13px] text-ink-muted mt-1.5">
+              Manually{" "}
+              <button className="text-brand-400 hover:underline">create a row</button>,{" "}
+              <button onClick={() => setShowImport(true)} className="text-brand-400 hover:underline">upload a CSV/JSON file</button>,{" "}
+              or{" "}
+              <button className="text-brand-400 hover:underline">insert data programmatically</button>
+            </p>
           </div>
-        ) : (
-          <Group orientation="horizontal" className="h-full">
-            {/* Table panel */}
-            <Panel defaultSize={72} minSize={30} className="overflow-hidden">
-              <div className="h-full overflow-hidden">
-                <ResizableTable
-                  cols={colsWithDelete}
-                  items={filtered}
-                  selectedIds={selectedIds}
-                  onToggle={id => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; })}
-                  onToggleAll={toggleAll}
-                />
-              </div>
-            </Panel>
+          <div
+            onClick={() => setShowImport(true)}
+            className="w-full max-w-xl rounded-2xl border-2 border-dashed border-dark-border hover:border-dark-border/80 hover:bg-dark-raised/10 cursor-pointer transition-all flex flex-col items-center justify-center gap-3 py-14 px-8"
+          >
+            <Upload className="w-8 h-8 text-ink-muted" />
+            <p className="text-[14px] text-ink-muted text-center">Drag and drop CSV or JSON file here,<br />or click to select</p>
+          </div>
+        </div>
+      ) : (
+        /* Split pane — ResizablePanelGroup is the direct flex-1 child */
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="flex-1 group"
+          style={{ minHeight: 0 }}
+        >
+          {/* Table panel */}
+          <ResizablePanel defaultSize={68} minSize={30}>
+            <div className="h-full overflow-hidden">
+              <ResizableTable
+                cols={colsWithDelete}
+                items={filtered}
+                selectedIds={selectedIds}
+                onToggle={id => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; })}
+                onToggleAll={toggleAll}
+              />
+            </div>
+          </ResizablePanel>
 
-            {/* Drag handle */}
-            <Separator className="bg-dark-border hover:bg-brand-400/40 transition-colors cursor-col-resize" style={{ width: "4px" }} />
+          {/* Drag handle */}
+          <ResizableHandle withHandle />
 
-            {/* Right details panel */}
-            <Panel defaultSize={28} minSize={18} maxSize={60} className="overflow-hidden">
-              <div className="h-full overflow-hidden">
-                <RightPanel data={data} orgId={orgId} onRunEval={() => setShowRun(true)} onImport={() => setShowImport(true)} />
-              </div>
-            </Panel>
-          </Group>
-        )}
-      </div>
+          {/* Right details panel — default 32% so it's always visible */}
+          <ResizablePanel defaultSize={32} minSize={20} maxSize={60}>
+            <div className="h-full overflow-hidden">
+              <RightPanel data={data} orgId={orgId} onRunEval={() => setShowRun(true)} onImport={() => setShowImport(true)} />
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      )}
 
       {showRun && <RunModal datasetId={datasetId} orgId={orgId} onClose={() => setShowRun(false)} />}
       {showImport && <ImportModal datasetId={datasetId} onClose={() => setShowImport(false)} />}
