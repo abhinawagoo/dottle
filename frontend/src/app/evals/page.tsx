@@ -3,9 +3,11 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { evalsApi } from "@/lib/api";
 import { useProject } from "@/lib/project-context";
+import { useOrg } from "@/lib/org-context";
 import { EvalConfig } from "@/lib/types";
 import { clsx } from "clsx";
 import { Plus, Trash2, Bot, ToggleLeft, ToggleRight, ChevronDown, ChevronRight, Zap } from "lucide-react";
+import { ModelPicker } from "@/components/ui/model-picker";
 import { formatDistanceToNow } from "date-fns";
 
 // ── New eval config modal ─────────────────────────────────────────────────────
@@ -18,7 +20,7 @@ const CRITERIA_TEMPLATES = [
   { name: "Tool use accuracy", criteria: "Evaluate whether the agent chose and used the right tools with the right arguments. Did tool calls fail due to incorrect inputs? Were the right tools selected for the task?", score_name: "tool_accuracy" },
 ];
 
-function NewEvalModal({ projectId, onClose }: { projectId: string; onClose: () => void }) {
+function NewEvalModal({ projectId, orgId, onClose }: { projectId: string; orgId: string | null; onClose: () => void }) {
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [criteria, setCriteria] = useState("");
@@ -89,12 +91,7 @@ function NewEvalModal({ projectId, onClose }: { projectId: string; onClose: () =
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide block mb-1.5">Judge model</label>
-              <select value={model} onChange={e => setModel(e.target.value)}
-                className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-[12px] text-ink-secondary focus:outline-none">
-                <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-                <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
-                <option value="claude-opus-4-6">Claude Opus 4.6</option>
-              </select>
+              <ModelPicker orgId={orgId} value={model} onChange={setModel} />
             </div>
             <div>
               <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide block mb-1.5">Run on</label>
@@ -196,6 +193,7 @@ function EvalCard({ config, projectId }: { config: EvalConfig; projectId: string
 
 export default function EvalsPage() {
   const { selectedProject } = useProject();
+  const { selectedOrg } = useOrg();
   const [showNew, setShowNew] = useState(false);
 
   const { data: configs = [], isLoading } = useQuery({
@@ -269,7 +267,7 @@ export default function EvalsPage() {
         </div>
       )}
 
-      {showNew && <NewEvalModal projectId={selectedProject.id} onClose={() => setShowNew(false)} />}
+      {showNew && <NewEvalModal projectId={selectedProject.id} orgId={selectedOrg?.id ?? null} onClose={() => setShowNew(false)} />}
     </div>
   );
 }

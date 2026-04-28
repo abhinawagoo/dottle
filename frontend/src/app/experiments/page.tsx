@@ -1,8 +1,10 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { experimentsApi, datasetsApi, playgroundApi, type ExperimentSummary, type ExperimentDetail, type ExperimentVariant, type ProviderModels } from "@/lib/api";
+import { experimentsApi, datasetsApi, type ExperimentSummary, type ExperimentDetail, type ExperimentVariant } from "@/lib/api";
 import { useProject } from "@/lib/project-context";
+import { useOrg } from "@/lib/org-context";
+import { ModelPicker } from "@/components/ui/model-picker";
 import { DatasetSummary } from "@/lib/types";
 import {
   FlaskConical, Plus, Play, Trash2, ChevronRight, Check,
@@ -32,12 +34,12 @@ function VariantForm({
   label,
   value,
   onChange,
-  providerGroups,
+  orgId,
 }: {
   label: string;
   value: ExperimentVariant;
   onChange: (v: ExperimentVariant) => void;
-  providerGroups: ProviderModels[];
+  orgId: string | null;
 }) {
   return (
     <div className="space-y-3 p-4 bg-dark-raised border border-dark-border rounded-xl">
@@ -51,24 +53,7 @@ function VariantForm({
 
       <div>
         <label className="form-label">Model</label>
-        <select className="input-dark" value={value.model} onChange={e => onChange({ ...value, model: e.target.value })}>
-          {providerGroups.length > 0 ? (
-            providerGroups.map(pg => (
-              <optgroup key={pg.provider} label={`${pg.provider.charAt(0).toUpperCase() + pg.provider.slice(1)}${pg.configured ? "" : " (no key)"}`}>
-                {pg.models.map(m => (
-                  <option key={m.id} value={m.id} disabled={!pg.configured}>{m.label}</option>
-                ))}
-              </optgroup>
-            ))
-          ) : (
-            <>
-              <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-              <option value="claude-opus-4-6">Claude Opus 4.6</option>
-              <option value="gpt-4o">GPT-4o</option>
-              <option value="gpt-4o-mini">GPT-4o mini</option>
-            </>
-          )}
-        </select>
+        <ModelPicker orgId={orgId} value={value.model} onChange={model => onChange({ ...value, model })} />
       </div>
 
       <div>
@@ -86,14 +71,14 @@ function VariantForm({
 
 function CreateModal({
   projectId,
+  orgId,
   datasets,
-  providerGroups,
   onClose,
   onCreate,
 }: {
   projectId: string;
+  orgId: string | null;
   datasets: DatasetSummary[];
-  providerGroups: ProviderModels[];
   onClose: () => void;
   onCreate: () => void;
 }) {
@@ -103,9 +88,8 @@ function CreateModal({
   const [evalCriteria, setEvalCriteria] = useState(
     "Rate the response on quality, accuracy, and helpfulness from 0 to 100."
   );
-  const defaultModel = providerGroups.find(p => p.configured)?.models[0]?.id ?? "claude-sonnet-4-6";
-  const [variantA, setVariantA] = useState<ExperimentVariant>({ model: defaultModel, system_prompt: "", label: "Variant A" });
-  const [variantB, setVariantB] = useState<ExperimentVariant>({ model: "gpt-4o", system_prompt: "", label: "Variant B" });
+  const [variantA, setVariantA] = useState<ExperimentVariant>({ model: "claude-sonnet-4-6", system_prompt: "", label: "Variant A" });
+  const [variantB, setVariantB] = useState<ExperimentVariant>({ model: "claude-sonnet-4-6", system_prompt: "", label: "Variant B" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -177,8 +161,8 @@ function CreateModal({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <VariantForm label="Variant A" value={variantA} onChange={setVariantA} providerGroups={providerGroups} />
-            <VariantForm label="Variant B" value={variantB} onChange={setVariantB} providerGroups={providerGroups} />
+            <VariantForm label="Variant A" value={variantA} onChange={setVariantA} orgId={orgId} />
+            <VariantForm label="Variant B" value={variantB} onChange={setVariantB} orgId={orgId} />
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
@@ -403,6 +387,7 @@ function ExperimentRow({ exp, projectId }: { exp: ExperimentSummary; projectId: 
 
 export default function ExperimentsPage() {
   const { selectedProject } = useProject();
+  const { selectedOrg } = useOrg();
   const projectId = selectedProject?.id ?? "";
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
@@ -417,12 +402,6 @@ export default function ExperimentsPage() {
   const { data: datasets = [] } = useQuery<DatasetSummary[]>({
     queryKey: ["datasets", projectId],
     queryFn: () => datasetsApi.list(projectId),
-    enabled: !!projectId,
-  });
-
-  const { data: providerGroups = [] } = useQuery<ProviderModels[]>({
-    queryKey: ["playground-models", projectId],
-    queryFn: () => playgroundApi.listModels(projectId),
     enabled: !!projectId,
   });
 
@@ -485,8 +464,8 @@ export default function ExperimentsPage() {
       {showCreate && (
         <CreateModal
           projectId={projectId}
+          orgId={selectedOrg?.id ?? null}
           datasets={datasets}
-          providerGroups={providerGroups}
           onClose={() => setShowCreate(false)}
           onCreate={() => qc.invalidateQueries({ queryKey: ["experiments", projectId] })}
         />
