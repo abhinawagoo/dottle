@@ -186,13 +186,13 @@ export function ModelPicker({
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-dark-border bg-dark-surface shadow-xl overflow-hidden">
+        <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-dark-border bg-[#0d0d0f] shadow-2xl overflow-hidden">
           <div className="max-h-72 overflow-y-auto">
             {!hasAny && (
-              <div className="px-4 pt-4 pb-3">
-                <div className="flex items-start gap-2 text-sm text-ink-muted mb-3">
+              <div className="px-4 pt-4 pb-2">
+                <div className="flex items-start gap-2 text-[13px] text-ink-secondary mb-3 bg-amber-500/5 border border-amber-500/20 rounded-lg p-3">
                   <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <span>No providers configured. Add an org-level AI provider to get started.</span>
+                  <span>No providers configured. Add an API key in Settings → AI Providers to get started.</span>
                 </div>
               </div>
             )}
@@ -202,9 +202,9 @@ export function ModelPicker({
               const meta = PROVIDER_META[group.provider];
               return (
                 <div key={group.provider}>
-                  <div className="px-3 py-1.5 flex items-center gap-1.5">
+                  <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
                     <ProviderIcon provider={group.provider} size={11} />
-                    <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: meta?.textColor ?? "#888" }}>
+                    <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: meta?.textColor ?? "#888" }}>
                       {meta?.label ?? group.provider}
                     </span>
                   </div>
@@ -214,10 +214,10 @@ export function ModelPicker({
                       type="button"
                       onClick={() => { onChange(model.id); setOpen(false); }}
                       className={cn(
-                        "w-full flex items-center gap-2.5 px-4 py-2 text-sm transition-colors",
+                        "w-full flex items-center gap-2.5 px-4 py-2 text-[13px] transition-colors",
                         value === model.id
-                          ? "bg-brand-500/10 text-ink-primary"
-                          : "text-ink-secondary hover:bg-dark-raised hover:text-ink-primary"
+                          ? "bg-brand-500/15 text-white"
+                          : "text-[#d4d4d8] hover:bg-[#1c1c1f] hover:text-white"
                       )}
                     >
                       <ProviderIcon provider={group.provider} size={13} />
@@ -233,23 +233,23 @@ export function ModelPicker({
             {unconfiguredGroups.length > 0 && (
               <>
                 {configuredGroups.length > 0 && (
-                  <div className="mx-3 my-1 h-px bg-dark-divider" />
+                  <div className="mx-3 my-1.5 h-px bg-dark-border" />
                 )}
-                <div className="px-3 py-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-dim">Not configured</span>
+                <div className="px-3 pt-2 pb-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[#52525b]">Not configured</span>
                 </div>
                 {unconfiguredGroups.map(group => {
                   const meta = PROVIDER_META[group.provider];
                   return (
-                    <div key={group.provider} className="opacity-40">
-                      <div className="px-3 py-1 flex items-center gap-1.5">
+                    <div key={group.provider}>
+                      <div className="px-3 pt-1 pb-0.5 flex items-center gap-1.5 opacity-35">
                         <ProviderIcon provider={group.provider} size={11} />
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-dim">
+                        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: meta?.textColor ?? "#888" }}>
                           {meta?.label ?? group.provider}
                         </span>
                       </div>
                       {group.models.slice(0, 2).map(model => (
-                        <div key={model.id} className="flex items-center gap-2.5 px-4 py-1.5 text-sm text-ink-dim cursor-not-allowed">
+                        <div key={model.id} className="flex items-center gap-2.5 px-4 py-1.5 text-[13px] text-[#52525b] cursor-not-allowed opacity-40">
                           <ProviderIcon provider={group.provider} size={13} />
                           <span>{model.label}</span>
                         </div>
@@ -266,22 +266,21 @@ export function ModelPicker({
             <button
               type="button"
               onClick={() => { setOpen(false); router.push("/settings?tab=providers"); }}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-ink-muted hover:text-ink-primary hover:bg-dark-raised transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] text-[#a1a1aa] hover:text-white hover:bg-[#1c1c1f] transition-colors"
             >
               <Plus className="w-4 h-4" />
-              <span className="flex-1 text-left">Add provider</span>
-              {/* Mini logos of unconfigured providers */}
+              <span className="flex-1 text-left">Manage providers</span>
               <span className="flex items-center gap-1">
                 {unconfiguredGroups.slice(0, 3).map(g => (
-                  <span key={g.provider} className="opacity-50">
+                  <span key={g.provider} className="opacity-40">
                     <ProviderIcon provider={g.provider} size={12} />
                   </span>
                 ))}
                 {unconfiguredGroups.length > 3 && (
-                  <span className="text-[10px] text-ink-dim">+{unconfiguredGroups.length - 3}</span>
+                  <span className="text-[10px] text-[#52525b]">+{unconfiguredGroups.length - 3}</span>
                 )}
               </span>
-              <ExternalLink className="w-3 h-3 opacity-50" />
+              <ExternalLink className="w-3 h-3 opacity-40" />
             </button>
           </div>
         </div>

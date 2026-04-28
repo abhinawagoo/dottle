@@ -135,10 +135,6 @@ async def _get_api_key(provider: str, org_id: Optional[str], db: AsyncSession) -
             if row:
                 return row.api_key_enc
 
-    # Fallback for Anthropic — use the server env key
-    if provider == "anthropic" and settings.anthropic_api_key:
-        return settings.anthropic_api_key
-
     raise HTTPException(
         status_code=400,
         detail=f"No API key configured for provider '{provider}'. Add one in Settings → AI Providers.",
@@ -159,7 +155,7 @@ async def list_models(
     _user: User = Depends(get_current_user),
 ):
     """Return all providers and their models, marking which ones have a key configured."""
-    configured: set[str] = {"anthropic"}  # server key always available
+    configured: set[str] = set()  # only show providers the org has explicitly configured
     if org_id:
         import uuid as _uuid
         try:
