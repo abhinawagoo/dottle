@@ -12,7 +12,7 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Plus, ExternalLink, AlertCircle } from "lucide-react";
+import { Check, ChevronDown, Plus, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 
@@ -187,76 +187,76 @@ export function ModelPicker({
       {/* Dropdown */}
       {open && (
         <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-dark-border bg-[#0d0d0f] shadow-2xl overflow-hidden">
-          <div className="max-h-72 overflow-y-auto">
-            {!hasAny && (
-              <div className="px-4 pt-4 pb-2">
-                <div className="flex items-start gap-2 text-[13px] text-ink-secondary mb-3 bg-amber-500/5 border border-amber-500/20 rounded-lg p-3">
-                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <span>No providers configured. Add an API key in Settings → AI Providers to get started.</span>
+          <div className="max-h-80 overflow-y-auto">
+            {/* When NO providers configured — show all models as reference */}
+            {!hasAny ? (
+              <div>
+                <div className="px-4 pt-3 pb-2 text-[12px] text-[#a1a1aa] leading-relaxed border-b border-[#27272a]">
+                  No supported models found. Add an org-level AI provider that includes any of the following models to get started.
                 </div>
-              </div>
-            )}
-
-            {/* Configured providers */}
-            {configuredGroups.map(group => {
-              const meta = PROVIDER_META[group.provider];
-              return (
-                <div key={group.provider}>
-                  <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
-                    <ProviderIcon provider={group.provider} size={11} />
-                    <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: meta?.textColor ?? "#888" }}>
-                      {meta?.label ?? group.provider}
-                    </span>
+                {groups.flatMap(g => g.models.map(m => ({ ...m, provider: g.provider }))).map(model => (
+                  <div
+                    key={model.id}
+                    className="flex items-center gap-3 px-4 py-2 text-[13px] text-[#71717a]"
+                  >
+                    <ProviderIcon provider={model.provider} size={14} />
+                    <span className="flex-1">{model.id}</span>
                   </div>
-                  {group.models.map(model => (
-                    <button
-                      key={model.id}
-                      type="button"
-                      onClick={() => { onChange(model.id); setOpen(false); }}
-                      className={cn(
-                        "w-full flex items-center gap-2.5 px-4 py-2 text-[13px] transition-colors",
-                        value === model.id
-                          ? "bg-brand-500/15 text-white"
-                          : "text-[#d4d4d8] hover:bg-[#1c1c1f] hover:text-white"
-                      )}
-                    >
-                      <ProviderIcon provider={group.provider} size={13} />
-                      <span className="flex-1 text-left">{model.label}</span>
-                      {value === model.id && <Check className="w-3.5 h-3.5 text-brand-400 shrink-0" />}
-                    </button>
-                  ))}
-                </div>
-              );
-            })}
-
-            {/* Unconfigured providers — greyed, shown as hints */}
-            {unconfiguredGroups.length > 0 && (
+                ))}
+              </div>
+            ) : (
               <>
-                {configuredGroups.length > 0 && (
-                  <div className="mx-3 my-1.5 h-px bg-dark-border" />
-                )}
-                <div className="px-3 pt-2 pb-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[#52525b]">Not configured</span>
-                </div>
-                {unconfiguredGroups.map(group => {
+                {/* Configured providers — selectable */}
+                {configuredGroups.map(group => {
                   const meta = PROVIDER_META[group.provider];
                   return (
                     <div key={group.provider}>
-                      <div className="px-3 pt-1 pb-0.5 flex items-center gap-1.5 opacity-35">
+                      <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
                         <ProviderIcon provider={group.provider} size={11} />
                         <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: meta?.textColor ?? "#888" }}>
                           {meta?.label ?? group.provider}
                         </span>
                       </div>
-                      {group.models.slice(0, 2).map(model => (
-                        <div key={model.id} className="flex items-center gap-2.5 px-4 py-1.5 text-[13px] text-[#52525b] cursor-not-allowed opacity-40">
+                      {group.models.map(model => (
+                        <button
+                          key={model.id}
+                          type="button"
+                          onClick={() => { onChange(model.id); setOpen(false); }}
+                          className={cn(
+                            "w-full flex items-center gap-2.5 px-4 py-2 text-[13px] transition-colors",
+                            value === model.id
+                              ? "bg-brand-500/15 text-white"
+                              : "text-[#d4d4d8] hover:bg-[#1c1c1f] hover:text-white"
+                          )}
+                        >
                           <ProviderIcon provider={group.provider} size={13} />
-                          <span>{model.label}</span>
-                        </div>
+                          <span className="flex-1 text-left">{model.label}</span>
+                          {value === model.id && <Check className="w-3.5 h-3.5 text-brand-400 shrink-0" />}
+                        </button>
                       ))}
                     </div>
                   );
                 })}
+
+                {/* Unconfigured — greyed hints */}
+                {unconfiguredGroups.length > 0 && (
+                  <>
+                    <div className="mx-3 my-1.5 h-px bg-[#27272a]" />
+                    <div className="px-3 pt-1 pb-1">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#52525b]">Not configured</span>
+                    </div>
+                    {unconfiguredGroups.map(group => (
+                      <div key={group.provider}>
+                        {group.models.slice(0, 2).map(model => (
+                          <div key={model.id} className="flex items-center gap-2.5 px-4 py-1.5 text-[13px] text-[#3f3f46] cursor-not-allowed">
+                            <ProviderIcon provider={group.provider} size={13} />
+                            <span>{model.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </>
+                )}
               </>
             )}
           </div>

@@ -14,7 +14,7 @@ import {
   FlaskConical, Telescope, Trash2, Columns, Check, Eye, EyeOff,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { Group, Panel, Separator } from "react-resizable-panels";
 
 // ── Column visibility state ────────────────────────────────────────────────────
 
@@ -559,14 +559,14 @@ function RightPanel({ data, onRunEval }: {
             </div>
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted mb-2">Stats</p>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-dark-raised rounded-xl px-3 py-2.5">
-                  <p className="text-[20px] font-bold text-ink-primary">{data.items.length}</p>
-                  <p className="text-[10px] text-ink-muted">examples</p>
+              <div className="flex gap-2">
+                <div className="flex-1 bg-dark-raised rounded-xl px-3 py-2.5 min-w-0">
+                  <p className="text-[22px] font-bold text-ink-primary leading-none">{data.items.length}</p>
+                  <p className="text-[10px] text-ink-muted mt-1">examples</p>
                 </div>
-                <div className="bg-dark-raised rounded-xl px-3 py-2.5">
-                  <p className="text-[20px] font-bold text-ink-primary">{data.runs.length}</p>
-                  <p className="text-[10px] text-ink-muted">eval runs</p>
+                <div className="flex-1 bg-dark-raised rounded-xl px-3 py-2.5 min-w-0">
+                  <p className="text-[22px] font-bold text-ink-primary leading-none">{data.runs.length}</p>
+                  <p className="text-[10px] text-ink-muted mt-1">eval runs</p>
                 </div>
               </div>
             </div>
@@ -854,35 +854,38 @@ function DatasetDetailView({ datasetId, orgId, onBack }: {
           </div>
         </div>
       ) : (
-        /* Split pane — ResizablePanelGroup is the direct flex-1 child */
-        <ResizablePanelGroup
-          orientation="horizontal"
-          className="flex-1 group"
-          style={{ minHeight: 0 }}
-        >
-          {/* Table panel */}
-          <ResizablePanel defaultSize={68} minSize={30}>
-            <div className="h-full overflow-hidden">
-              <ResizableTable
-                cols={colsWithDelete}
-                items={filtered}
-                selectedIds={selectedIds}
-                onToggle={id => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; })}
-                onToggleAll={toggleAll}
-              />
-            </div>
-          </ResizablePanel>
+        /* Wrapper: flex-1 + min-h-0 lets Group resolve height: 100% correctly */
+        <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex" }}>
+          <Group
+            orientation="horizontal"
+            style={{ width: "100%", height: "100%" }}
+          >
+            {/* Table panel */}
+            <Panel defaultSize={62} minSize={30}>
+              <div style={{ height: "100%", overflow: "hidden" }}>
+                <ResizableTable
+                  cols={colsWithDelete}
+                  items={filtered}
+                  selectedIds={selectedIds}
+                  onToggle={id => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; })}
+                  onToggleAll={toggleAll}
+                />
+              </div>
+            </Panel>
 
-          {/* Drag handle */}
-          <ResizableHandle withHandle />
+            {/* Drag handle */}
+            <Separator
+              style={{ width: "5px", cursor: "col-resize", background: "var(--c-border)", flexShrink: 0, transition: "background 0.15s" }}
+            />
 
-          {/* Right details panel — default 32% so it's always visible */}
-          <ResizablePanel defaultSize={32} minSize={20} maxSize={60}>
-            <div className="h-full overflow-hidden">
-              <RightPanel data={data} orgId={orgId} onRunEval={() => setShowRun(true)} onImport={() => setShowImport(true)} />
-            </div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
+            {/* Right details panel */}
+            <Panel defaultSize={38} minSize={26} maxSize={60}>
+              <div style={{ height: "100%", overflow: "hidden" }}>
+                <RightPanel data={data} orgId={orgId} onRunEval={() => setShowRun(true)} onImport={() => setShowImport(true)} />
+              </div>
+            </Panel>
+          </Group>
+        </div>
       )}
 
       {showRun && <RunModal datasetId={datasetId} orgId={orgId} onClose={() => setShowRun(false)} />}
