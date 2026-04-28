@@ -6,14 +6,14 @@
  * Matches the dottle.dev brand shown in the top-left navigation.
  */
 export default function DottleLogo({
-  size = 28,
+  size = 30,
   showText = true,
 }: {
   size?: number;
   showText?: boolean;
 }) {
   return (
-    <span className="flex items-center gap-2 select-none min-w-0">
+    <span className="flex items-center gap-2.5 select-none min-w-0">
       {/* Face SVG — viewBox tightly crops the head + antenna */}
       <svg
         width={size}
@@ -34,15 +34,15 @@ export default function DottleLogo({
               30%       { transform: rotate(7deg); }
               70%       { transform: rotate(-7deg); }
             }
-            .dl-eyeL { animation: dl-blink 4.2s ease-in-out infinite;     transform-origin: 298px 250px; }
+            .dl-eyeL { animation: dl-blink 4.2s ease-in-out infinite;      transform-origin: 298px 250px; }
             .dl-eyeR { animation: dl-blink 4.2s ease-in-out infinite 0.12s; transform-origin: 322px 248px; }
-            .dl-ant  { animation: dl-sway  3.0s ease-in-out infinite;     transform-origin: 310px 219px; }
+            .dl-ant  { animation: dl-sway  3.0s ease-in-out infinite;      transform-origin: 310px 219px; }
           `}</style>
         </defs>
 
         {/* Head body */}
         <circle cx="310" cy="255" r="36" fill="#C8613A" />
-        {/* Shadow blob — gives the round depth */}
+        {/* Shadow blob — depth */}
         <circle cx="296" cy="246" r="22" fill="#B8542F" />
 
         {/* Antenna */}
@@ -59,7 +59,7 @@ export default function DottleLogo({
           <circle cx="302" cy="250" r="1.5" fill="white" />
         </g>
 
-        {/* Right eye — blinking (slight offset) */}
+        {/* Right eye — blinking */}
         <g className="dl-eyeR">
           <circle cx="322" cy="248" r="9" fill="#FFF5F0" />
           <circle cx="324" cy="250" r="4.5" fill="#1A1917" />
@@ -76,14 +76,20 @@ export default function DottleLogo({
         />
       </svg>
 
-      {/* Wordmark — "dottle" bold + ".dev" muted — hidden when collapsed */}
+      {/* Wordmark — hidden when collapsed */}
       {showText && (
-        <span className="flex items-baseline gap-0 leading-none min-w-0">
-          <span className="text-[15px] font-semibold tracking-tight text-ink-primary truncate">
+        <span className="flex items-baseline leading-none min-w-0 gap-0">
+          {/* "dottle" — bold, primary ink */}
+          <span className="text-[17px] font-semibold tracking-tight text-ink-primary">
             dottle
           </span>
-          <span className="text-[15px] font-normal tracking-tight text-ink-muted">
-            .dev
+          {/* orange dot matching the mascot */}
+          <span className="text-[17px] font-semibold" style={{ color: "#C8613A" }}>
+            .
+          </span>
+          {/* "dev" — normal weight, muted */}
+          <span className="text-[17px] font-normal tracking-tight text-ink-muted">
+            dev
           </span>
         </span>
       )}

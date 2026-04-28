@@ -6,7 +6,7 @@ import {
   Activity, BarChart2, Bell, Layers, Settings, ShieldAlert,
   Sun, Moon, LogOut, HelpCircle, Users, Wrench, FlaskConical,
   GitCompare, Wand2, Tag, Bot, Database, Monitor,
-  PanelLeftClose, PanelLeftOpen, GripVertical,
+  PanelLeftClose, GripVertical,
 } from "lucide-react";
 import InstrumentWizard from "@/components/onboarding/InstrumentWizard";
 import DottleLogo from "@/components/dottle-logo";
@@ -164,24 +164,32 @@ export default function Sidebar() {
         >
           {/* Logo + collapse toggle */}
           <div className={cn(
-            "flex items-center h-14 border-b border-dark-border shrink-0 gap-2",
-            collapsed ? "justify-center px-0" : "px-3"
+            "flex items-center h-14 border-b border-dark-border shrink-0",
+            collapsed ? "justify-center px-0" : "px-3 gap-2"
           )}>
-            <button
-              onClick={collapsed ? toggleCollapsed : undefined}
-              title={collapsed ? "Expand sidebar" : undefined}
-              className={cn("flex items-center flex-1 min-w-0", collapsed && "cursor-pointer")}
-            >
-              <DottleLogo size={collapsed ? 26 : 28} showText={!collapsed} />
-            </button>
-            {!collapsed && (
+            {collapsed ? (
+              /* Collapsed: same centering as nav icons — w-9 mx-auto */
               <button
                 onClick={toggleCollapsed}
-                title="Collapse sidebar"
-                className="p-1.5 rounded-lg text-ink-dim hover:text-ink-muted hover:bg-dark-raised/60 transition-all shrink-0"
+                title="Expand sidebar"
+                className="w-9 flex items-center justify-center rounded-lg hover:bg-dark-raised/60 transition-all"
               >
-                <PanelLeftClose className="w-3.5 h-3.5" />
+                <DottleLogo size={22} showText={false} />
               </button>
+            ) : (
+              /* Expanded: logo + collapse button */
+              <>
+                <div className="flex items-center flex-1 min-w-0">
+                  <DottleLogo size={30} showText={true} />
+                </div>
+                <button
+                  onClick={toggleCollapsed}
+                  title="Collapse sidebar"
+                  className="p-1.5 rounded-lg text-ink-dim hover:text-ink-muted hover:bg-dark-raised/60 transition-all shrink-0"
+                >
+                  <PanelLeftClose className="w-3.5 h-3.5" />
+                </button>
+              </>
             )}
           </div>
 
