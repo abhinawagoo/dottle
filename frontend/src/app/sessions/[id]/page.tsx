@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { sessionsApi, scoresApi, datasetsApi, playgroundApi, type ProviderModels } from "@/lib/api";
+import { sessionsApi, scoresApi, datasetsApi, playgroundApi } from "@/lib/api";
+import { ModelPicker } from "@/components/ui/model-picker";
 import { Span, SessionIssue, IssueSeverity, Score, DatasetSummary } from "@/lib/types";
 import { StatusBadge, LoopBadge, SpanTypeBadge } from "@/components/ui/Badge";
 import { Card, StatCard } from "@/components/ui/Card";
@@ -17,7 +18,7 @@ import {
   ArrowLeft, AlertTriangle, XCircle, Layers,
   ChevronDown, ChevronRight, Radio, ShieldAlert,
   AlertCircle, Info, TrendingUp, Zap, Tag, User, FlaskConical, Sparkles,
-  ThumbsUp, ThumbsDown, Database, Play, Loader2, Send, RotateCcw,
+  ThumbsUp, ThumbsDown, Database, Play, Loader2, Send, RotateCcw, GripVertical,
 } from "lucide-react";
 
 interface Props { params: { id: string } }
@@ -350,12 +351,6 @@ function PlaygroundPanel({ session }: { session: { id: string; spans: Span[] } }
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
 
-  const { data: providerGroups = [] } = useQuery<ProviderModels[]>({
-    queryKey: ["playground-models", selectedOrg?.id],
-    queryFn: () => playgroundApi.listModels(selectedOrg?.id),
-    staleTime: 60_000,
-  });
-
   async function runPlayground() {
     setRunning(true);
     setError("");
@@ -382,24 +377,7 @@ function PlaygroundPanel({ session }: { session: { id: string; spans: Span[] } }
         <div className="grid grid-cols-4 gap-2 items-end">
           <div className="col-span-3">
             <label className="text-[10px] font-semibold text-ink-dim uppercase tracking-wide block mb-1">Model</label>
-            <select value={model} onChange={e => setModel(e.target.value)}
-              className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-[12px] text-ink-secondary focus:outline-none">
-              {providerGroups.length > 0 ? (
-                providerGroups.map(pg => (
-                  <optgroup key={pg.provider} label={`${pg.provider.charAt(0).toUpperCase() + pg.provider.slice(1)}${pg.configured ? "" : " (no key)"}`}>
-                    {pg.models.map(m => (
-                      <option key={m.id} value={m.id} disabled={!pg.configured}>{m.label}</option>
-                    ))}
-                  </optgroup>
-                ))
-              ) : (
-                <>
-                  <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-                  <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
-                  <option value="claude-opus-4-6">Claude Opus 4.6</option>
-                </>
-              )}
-            </select>
+            <ModelPicker orgId={selectedOrg?.id ?? null} value={model} onChange={setModel} />
           </div>
           <button onClick={() => { setSystem(""); setUserMsg(lastLlm?.input_text ?? ""); setResult(null); }}
             className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dark-border text-[11px] text-ink-muted hover:text-ink-secondary transition-colors">
@@ -454,7 +432,39 @@ function PlaygroundPanel({ session }: { session: { id: string; spans: Span[] } }
 /* ── Page ──────────────────────────────────────────────────────────────────── */
 export default function SessionDetailPage({ params }: Props) {
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatWidth, setChatWidth] = useState(390);
+  const chatDragging = useRef(false);
+  const chatDragStart = useRef({ x: 0, width: 390 });
   const { selectedProject } = useProject();
+
+  const onChatResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    chatDragging.current = true;
+    chatDragStart.current = { x: e.clientX, width: chatWidth };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, [chatWidth]);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!chatDragging.current) return;
+      const delta = chatDragStart.current.x - e.clientX;
+      const next = Math.max(280, Math.min(720, chatDragStart.current.width + delta));
+      setChatWidth(next);
+    };
+    const onUp = () => {
+      if (!chatDragging.current) return;
+      chatDragging.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
   const isLive = (status: string) => status === "running" || status === "looping";
 
   const { data: session, isLoading, error } = useQuery({
@@ -500,7 +510,7 @@ export default function SessionDetailPage({ params }: Props) {
   return (
     <div className="relative">
     {/* Main content — shift right when chat is open */}
-    <div className={`transition-all duration-300 ${chatOpen ? "mr-[390px]" : ""}`}>
+    <div style={{ marginRight: chatOpen ? chatWidth : 0, transition: "margin-right 0.25s" }}>
     <div className="space-y-5 max-w-7xl mx-auto">
 
       {/* Back + header */}
@@ -692,14 +702,27 @@ export default function SessionDetailPage({ params }: Props) {
     </div>{/* end space-y-5 */}
     </div>{/* end main shift wrapper */}
 
-    {/* AI Chat — fixed panel sliding in from right */}
+    {/* AI Chat — resizable panel sliding in from right */}
     {chatOpen && (
-      <div className="fixed top-14 right-0 bottom-0 w-[390px] z-30 shadow-2xl">
-        <SessionAIChat
-          sessionId={session.id}
-          agentName={session.agent_name}
-          onClose={() => setChatOpen(false)}
-        />
+      <div
+        style={{ width: chatWidth }}
+        className="fixed top-14 right-0 bottom-0 z-30 shadow-2xl flex"
+      >
+        {/* Drag handle on left edge */}
+        <div
+          onMouseDown={onChatResizeStart}
+          className="w-1 shrink-0 cursor-col-resize bg-dark-border hover:bg-brand-400/40 transition-colors group flex items-center justify-center"
+          title="Drag to resize"
+        >
+          <GripVertical className="w-3 h-3 text-brand-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <SessionAIChat
+            sessionId={session.id}
+            agentName={session.agent_name}
+            onClose={() => setChatOpen(false)}
+          />
+        </div>
       </div>
     )}
     </div>
