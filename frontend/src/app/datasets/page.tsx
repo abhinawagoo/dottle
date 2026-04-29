@@ -11,10 +11,9 @@ import {
   Plus, Filter, SlidersHorizontal, Search, Upload, Play,
   ChevronDown, ChevronRight, Hash, Calendar, Tag, Braces, MoreHorizontal,
   CheckCircle2, XCircle, Loader2, FileJson, FileSpreadsheet,
-  FlaskConical, Telescope, Trash2, Columns, Check, Eye, EyeOff,
+  FlaskConical, Telescope, Trash2, Columns, Check,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { Group, Panel, Separator } from "react-resizable-panels";
 
 // ── Column visibility state ────────────────────────────────────────────────────
 
@@ -724,6 +723,20 @@ function DatasetDetailView({ datasetId, orgId, onBack }: {
   const [visibleCols, setVisibleCols] = useState<Set<ItemColKey>>(
     new Set(ALL_ITEM_COL_KEYS as unknown as ItemColKey[])
   );
+  const [rightWidth, setRightWidth] = useState(360);
+  const rightDragRef = useRef<{ startX: number; startW: number } | null>(null);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!rightDragRef.current) return;
+      const delta = rightDragRef.current.startX - e.clientX;
+      setRightWidth(Math.max(240, Math.min(600, rightDragRef.current.startW + delta)));
+    };
+    const onUp = () => { rightDragRef.current = null; document.body.style.cursor = ""; };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ["dataset", datasetId],
@@ -854,37 +867,40 @@ function DatasetDetailView({ datasetId, orgId, onBack }: {
           </div>
         </div>
       ) : (
-        /* Wrapper: flex-1 + min-h-0 lets Group resolve height: 100% correctly */
+        /* Custom drag-resize split — same pattern as sidebar & AI chat panel */
         <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex" }}>
-          <Group
-            orientation="horizontal"
-            style={{ width: "100%", height: "100%" }}
-          >
-            {/* Table panel */}
-            <Panel defaultSize={62} minSize={30}>
-              <div style={{ height: "100%", overflow: "hidden" }}>
-                <ResizableTable
-                  cols={colsWithDelete}
-                  items={filtered}
-                  selectedIds={selectedIds}
-                  onToggle={id => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; })}
-                  onToggleAll={toggleAll}
-                />
-              </div>
-            </Panel>
-
-            {/* Drag handle */}
-            <Separator
-              style={{ width: "5px", cursor: "col-resize", background: "var(--c-border)", flexShrink: 0, transition: "background 0.15s" }}
+          {/* Left: table fills remaining space */}
+          <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+            <ResizableTable
+              cols={colsWithDelete}
+              items={filtered}
+              selectedIds={selectedIds}
+              onToggle={id => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; })}
+              onToggleAll={toggleAll}
             />
+          </div>
 
-            {/* Right details panel */}
-            <Panel defaultSize={38} minSize={26} maxSize={60}>
-              <div style={{ height: "100%", overflow: "hidden" }}>
-                <RightPanel data={data} orgId={orgId} onRunEval={() => setShowRun(true)} onImport={() => setShowImport(true)} />
-              </div>
-            </Panel>
-          </Group>
+          {/* Drag handle */}
+          <div
+            onMouseDown={e => {
+              e.preventDefault();
+              rightDragRef.current = { startX: e.clientX, startW: rightWidth };
+              document.body.style.cursor = "col-resize";
+            }}
+            style={{
+              width: 5,
+              flexShrink: 0,
+              cursor: "col-resize",
+              background: "var(--c-border)",
+              transition: "background 0.15s",
+            }}
+            className="hover:bg-brand-400/50"
+          />
+
+          {/* Right: fixed pixel width panel */}
+          <div style={{ width: rightWidth, flexShrink: 0, overflow: "hidden" }}>
+            <RightPanel data={data} orgId={orgId} onRunEval={() => setShowRun(true)} onImport={() => setShowImport(true)} />
+          </div>
         </div>
       )}
 
