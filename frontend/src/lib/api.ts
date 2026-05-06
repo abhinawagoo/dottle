@@ -12,6 +12,27 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v
 
 export const api = axios.create({ baseURL: BASE_URL });
 
+/**
+ * Extract a human-readable error message from an axios error.
+ * Falls back gracefully when the server response has no body (e.g. network/CORS drops).
+ */
+export function apiErrorMessage(e: unknown): string {
+  if (axios.isAxiosError(e)) {
+    // Server responded — use FastAPI's detail field if present
+    const detail = e.response?.data?.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) return detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join("; ");
+    if (e.response?.status === 400) return "Bad request — check your inputs or configure an AI provider in Settings → AI Providers.";
+    if (e.response?.status === 401) return "Session expired — please log in again.";
+    if (e.response?.status === 404) return "Resource not found.";
+    if (e.response?.status === 502 || e.response?.status === 504) return "The AI provider did not respond. Check your API key in Settings → AI Providers.";
+    if (e.response?.status) return `Server error ${e.response.status}.`;
+    // No response — usually a network/CORS issue
+    return "Could not reach the server. Check your network connection.";
+  }
+  return (e as Error).message ?? "Unknown error";
+}
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const authApi = {
   register: (name: string, email: string, password: string) =>

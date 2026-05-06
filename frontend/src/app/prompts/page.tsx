@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { promptsApi, playgroundApi } from "@/lib/api";
+import { promptsApi, playgroundApi, apiErrorMessage } from "@/lib/api";
 import { useProject } from "@/lib/project-context";
 import { useOrg } from "@/lib/org-context";
 import { PromptVersion } from "@/lib/types";
@@ -271,7 +271,7 @@ function PromptDetailView({
       });
     },
     onSuccess: (r) => { setTestResult(r); setTestError(null); },
-    onError: (e: unknown) => { setTestError((e as Error).message); setTestResult(null); },
+    onError: (e: unknown) => { setTestError(apiErrorMessage(e)); setTestResult(null); },
   });
 
   // Save new version
@@ -471,8 +471,13 @@ function PromptDetailView({
 
               {/* Test output */}
               {testError && (
-                <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-3 py-2">
+                <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-3 py-2.5 space-y-1">
                   <p className="text-[11px] text-red-400">{testError}</p>
+                  {(testError.toLowerCase().includes("api key") || testError.toLowerCase().includes("provider") || testError.toLowerCase().includes("configure")) && (
+                    <a href="/settings?tab=providers" className="text-[11px] text-brand-400 hover:underline block">
+                      → Go to Settings → AI Providers
+                    </a>
+                  )}
                 </div>
               )}
               {testResult && (

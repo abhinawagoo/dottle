@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { sessionsApi, scoresApi, datasetsApi, playgroundApi } from "@/lib/api";
+import { sessionsApi, scoresApi, datasetsApi, playgroundApi, apiErrorMessage } from "@/lib/api";
 import { ModelPicker } from "@/components/ui/model-picker";
 import { Span, SessionIssue, IssueSeverity, Score, DatasetSummary } from "@/lib/types";
 import { StatusBadge, LoopBadge, SpanTypeBadge } from "@/components/ui/Badge";
@@ -364,7 +364,7 @@ function PlaygroundPanel({ session }: { session: { id: string; spans: Span[] } }
       });
       setResult(res);
     } catch (e: unknown) {
-      setError((e as Error).message || "Request failed");
+      setError(apiErrorMessage(e));
     } finally {
       setRunning(false);
     }
