@@ -189,102 +189,116 @@ async def run_playground(
 
     api_key = await _get_api_key(provider, body.org_id, db)
 
-    # ── Anthropic ──
-    if provider == "anthropic":
-        system_text = body.system or ""
-        msgs = [m for m in body.messages if m.role != "system"]
-        extra = next((m.content for m in body.messages if m.role == "system"), None)
-        if extra:
-            system_text = (system_text + "\n\n" + extra).strip()
+    try:
+        # ── Anthropic ──
+        if provider == "anthropic":
+            system_text = body.system or ""
+            msgs = [m for m in body.messages if m.role != "system"]
+            extra = next((m.content for m in body.messages if m.role == "system"), None)
+            if extra:
+                system_text = (system_text + "\n\n" + extra).strip()
 
-        payload: dict = {
-            "model": body.model,
-            "max_tokens": body.max_tokens,
-            "temperature": body.temperature,
-            "messages": [{"role": m.role, "content": m.content} for m in msgs],
-        }
-        if system_text:
-            payload["system"] = system_text
+            payload: dict = {
+                "model": body.model,
+                "max_tokens": body.max_tokens,
+                "temperature": body.temperature,
+                "messages": [{"role": m.role, "content": m.content} for m in msgs],
+            }
+            if system_text:
+                payload["system"] = system_text
 
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-                json=payload,
-            )
-        if resp.status_code != 200:
-            raise HTTPException(502, f"Anthropic returned {resp.status_code}: {resp.text[:300]}")
-        data = resp.json()
-        content = data["content"][0]["text"]
-        in_tok, out_tok = data["usage"]["input_tokens"], data["usage"]["output_tokens"]
+            async with httpx.AsyncClient(timeout=60) as client:
+                resp = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                    json=payload,
+                )
+            if resp.status_code != 200:
+                raise HTTPException(502, f"Anthropic error {resp.status_code}: {resp.text[:300]}")
+            data = resp.json()
+            content = data["content"][0]["text"]
+            in_tok, out_tok = data["usage"]["input_tokens"], data["usage"]["output_tokens"]
 
-    # ── OpenAI / Groq / Together / Mistral (OpenAI-compatible) ──
-    elif provider in ("openai", "groq", "together", "mistral"):
-        base_urls = {
-            "openai":   "https://api.openai.com/v1",
-            "groq":     "https://api.groq.com/openai/v1",
-            "together": "https://api.together.xyz/v1",
-            "mistral":  "https://api.mistral.ai/v1",
-        }
-        msgs = []
-        if body.system:
-            msgs.append({"role": "system", "content": body.system})
-        msgs.extend({"role": m.role, "content": m.content} for m in body.messages if m.role != "system")
+        # ── OpenAI / Groq / Together / Mistral (OpenAI-compatible) ──
+        elif provider in ("openai", "groq", "together", "mistral"):
+            base_urls = {
+                "openai":   "https://api.openai.com/v1",
+                "groq":     "https://api.groq.com/openai/v1",
+                "together": "https://api.together.xyz/v1",
+                "mistral":  "https://api.mistral.ai/v1",
+            }
+            msgs = []
+            if body.system:
+                msgs.append({"role": "system", "content": body.system})
+            msgs.extend({"role": m.role, "content": m.content} for m in body.messages if m.role != "system")
 
-        payload = {
-            "model": body.model,
-            "messages": msgs,
-            "max_tokens": body.max_tokens,
-        }
-        # o1 models don't support temperature
-        if body.model not in ("o1", "o1-mini"):
-            payload["temperature"] = body.temperature
+            payload = {
+                "model": body.model,
+                "messages": msgs,
+                "max_tokens": body.max_tokens,
+            }
+            if body.model not in ("o1", "o1-mini"):
+                payload["temperature"] = body.temperature
 
-        async with httpx.AsyncClient(timeout=90) as client:
-            resp = await client.post(
-                f"{base_urls[provider]}/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "content-type": "application/json"},
-                json=payload,
-            )
-        if resp.status_code != 200:
-            raise HTTPException(502, f"{provider} returned {resp.status_code}: {resp.text[:300]}")
-        data = resp.json()
-        content = data["choices"][0]["message"]["content"]
-        in_tok = data["usage"]["prompt_tokens"]
-        out_tok = data["usage"]["completion_tokens"]
+            async with httpx.AsyncClient(timeout=90) as client:
+                resp = await client.post(
+                    f"{base_urls[provider]}/chat/completions",
+                    headers={"Authorization": f"Bearer {api_key}", "content-type": "application/json"},
+                    json=payload,
+                )
+            if resp.status_code != 200:
+                raise HTTPException(502, f"{provider} error {resp.status_code}: {resp.text[:300]}")
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"]
+            in_tok = data["usage"]["prompt_tokens"]
+            out_tok = data["usage"]["completion_tokens"]
 
-    # ── Gemini ──
-    elif provider == "gemini":
-        gem_msgs = []
-        for m in body.messages:
-            if m.role == "system":
-                continue
-            gem_msgs.append({"role": "user" if m.role == "user" else "model", "parts": [{"text": m.content}]})
+        # ── Gemini ──
+        elif provider == "gemini":
+            gem_msgs = []
+            for m in body.messages:
+                if m.role == "system":
+                    continue
+                gem_msgs.append({"role": "user" if m.role == "user" else "model", "parts": [{"text": m.content}]})
 
-        payload = {
-            "contents": gem_msgs,
-            "generationConfig": {"maxOutputTokens": body.max_tokens, "temperature": body.temperature},
-        }
-        if body.system:
-            payload["systemInstruction"] = {"parts": [{"text": body.system}]}
+            payload = {
+                "contents": gem_msgs,
+                "generationConfig": {"maxOutputTokens": body.max_tokens, "temperature": body.temperature},
+            }
+            if body.system:
+                payload["systemInstruction"] = {"parts": [{"text": body.system}]}
 
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{body.model}:generateContent",
-                params={"key": api_key},
-                headers={"content-type": "application/json"},
-                json=payload,
-            )
-        if resp.status_code != 200:
-            raise HTTPException(502, f"Gemini returned {resp.status_code}: {resp.text[:300]}")
-        data = resp.json()
-        content = data["candidates"][0]["content"]["parts"][0]["text"]
-        meta = data.get("usageMetadata", {})
-        in_tok = meta.get("promptTokenCount", 0)
-        out_tok = meta.get("candidatesTokenCount", 0)
+            async with httpx.AsyncClient(timeout=60) as client:
+                resp = await client.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{body.model}:generateContent",
+                    params={"key": api_key},
+                    headers={"content-type": "application/json"},
+                    json=payload,
+                )
+            if resp.status_code != 200:
+                raise HTTPException(502, f"Gemini error {resp.status_code}: {resp.text[:300]}")
+            data = resp.json()
+            content = data["candidates"][0]["content"]["parts"][0]["text"]
+            meta = data.get("usageMetadata", {})
+            in_tok = meta.get("promptTokenCount", 0)
+            out_tok = meta.get("candidatesTokenCount", 0)
 
-    else:
-        raise HTTPException(400, f"Provider '{provider}' not implemented")
+        else:
+            raise HTTPException(400, f"Provider '{provider}' not implemented")
+
+    except HTTPException:
+        raise  # re-raise our own errors as-is
+    except httpx.TimeoutException:
+        raise HTTPException(504, f"Request to {provider} timed out. Try a shorter prompt or increase max_tokens.")
+    except httpx.ConnectError:
+        raise HTTPException(502, f"Could not connect to {provider} API. Check your network or try again.")
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"Network error calling {provider}: {exc}")
+    except (KeyError, IndexError) as exc:
+        raise HTTPException(502, f"Unexpected response format from {provider}: {exc}")
+    except Exception as exc:
+        logger.error("playground_run_error", provider=provider, model=body.model, error=str(exc))
+        raise HTTPException(500, f"Internal error: {exc}")
 
     return PlaygroundRunResponse(
         content=content,
