@@ -260,14 +260,33 @@ function PromptDetailView({
   } | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
 
+  // Auto-select first configured model when org loads
+  const { data: providerGroups = [] } = useQuery({
+    queryKey: ["playground-models", orgId],
+    queryFn: () => playgroundApi.listModels(orgId ?? undefined),
+    staleTime: 30_000,
+    enabled: !!orgId,
+  });
+  useEffect(() => {
+    if (!providerGroups.length) return;
+    const configured = providerGroups.filter(g => g.configured);
+    if (!configured.length) return;
+    // Only auto-select if current model's provider is not configured
+    const currentProvider = providerGroups.find(g => g.models.some(m => m.id === model));
+    if (!currentProvider?.configured && configured[0].models[0]) {
+      setModel(configured[0].models[0].id);
+    }
+  }, [providerGroups]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const runTest = useMutation({
     mutationFn: () => {
+      if (!orgId) throw new Error("No organization selected. Select an org before running.");
       const compiled = compilePrompt(content, varValues);
       return playgroundApi.run({
         model,
         messages: [{ role: "user", content: compiled }],
         max_tokens: 1024,
-        org_id: orgId ?? undefined,
+        org_id: orgId,
       });
     },
     onSuccess: (r) => { setTestResult(r); setTestError(null); },
@@ -453,6 +472,12 @@ function PromptDetailView({
               )}
 
               {/* Model + run */}
+              {!orgId && (
+                <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 px-3 py-2">
+                  <p className="text-[11px] text-amber-400">No organization selected — API keys cannot be looked up.</p>
+                </div>
+              )}
+
               <div>
                 <label className="text-[10px] font-semibold text-ink-muted uppercase tracking-wide block mb-1">Model</label>
                 <ModelPicker orgId={orgId} value={model} onChange={setModel} className="text-[12px]" />
@@ -460,7 +485,7 @@ function PromptDetailView({
 
               <button
                 onClick={() => runTest.mutate()}
-                disabled={runTest.isPending || !content.trim()}
+                disabled={runTest.isPending || !content.trim() || !orgId}
                 className="w-full flex items-center justify-center gap-2 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-[12px] font-semibold disabled:opacity-40 transition-colors"
               >
                 {runTest.isPending
