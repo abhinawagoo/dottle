@@ -270,6 +270,12 @@ export interface PromptVersion {
   version: number;
   label: string | null;
   content: string;
+  // Structured fields (stored in config JSONB, exposed as top-level)
+  system: string;
+  model: string | null;
+  parameters: Record<string, unknown>;
+  tools: object[];
+  messages: Array<{ role: string; content: string }>;
   variables: string[];
   config: Record<string, unknown>;
   tags: string[];

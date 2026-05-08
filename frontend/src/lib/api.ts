@@ -115,7 +115,18 @@ export const promptsApi = {
     api.get(`/prompts/${name}/versions`, { params: { project_id } }).then(r => r.data as PromptVersion[]),
   get: (name: string, project_id: string, version?: number) =>
     api.get(`/prompts/${name}`, { params: { project_id, version } }).then(r => r.data as PromptVersion),
-  create: (body: { project_id: string; name: string; content: string; label?: string; config?: Record<string,unknown>; tags?: string[]; commit_message?: string }) =>
+  create: (body: {
+    project_id: string;
+    name: string;
+    content: string;
+    label?: string;
+    commit_message?: string;
+    system?: string;
+    model?: string;
+    parameters?: Record<string, unknown>;
+    tools?: object[];
+    tags?: string[];
+  }) =>
     api.post("/prompts", body).then(r => r.data as PromptVersion),
   activate: (name: string, version: number, project_id: string) =>
     api.put(`/prompts/${name}/activate/${version}`, null, { params: { project_id } }).then(r => r.data),

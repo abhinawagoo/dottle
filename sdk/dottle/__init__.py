@@ -31,8 +31,9 @@ from dottle.context import session, span, async_session, async_span
 from dottle.decorators import task, tool_call, llm_call
 from dottle.client import get_client, reset_client
 from dottle.wrappers import wrap_openai, wrap_anthropic
+from dottle.prompts import get_prompt, PromptHandle
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 __all__ = [
     # Config
     "configure",
@@ -54,4 +55,7 @@ __all__ = [
     # Auto-wrappers
     "wrap_openai",
     "wrap_anthropic",
+    # Prompt management
+    "get_prompt",
+    "PromptHandle",
 ]

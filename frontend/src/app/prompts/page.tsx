@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { promptsApi, playgroundApi, apiErrorMessage } from "@/lib/api";
 import { useProject } from "@/lib/project-context";
@@ -11,6 +11,7 @@ import {
   Plus, ChevronRight, Check, Trash2, Tag, History,
   Copy, Play, Loader2, Save, RotateCcw, Zap,
   ChevronDown, Code2, FlaskConical, Clock, Hash,
+  Settings2, Wrench, Bot,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -128,7 +129,7 @@ function VersionItem({
   v: PromptVersion;
   projectId: string;
   isLoaded: boolean;
-  onLoad: (content: string) => void;
+  onLoad: (v: PromptVersion) => void;
   onActivated: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -171,7 +172,7 @@ function VersionItem({
 
       <div className="flex items-center gap-1">
         <button
-          onClick={() => onLoad(v.content)}
+          onClick={() => onLoad(v)}
           className={cn(
             "px-2 py-0.5 rounded text-[10px] font-semibold border transition-colors",
             isLoaded
@@ -237,20 +238,48 @@ function PromptDetailView({
   });
 
   // Editor state
+  const [system, setSystem] = useState("");
   const [content, setContent] = useState("");
+  const [promptModel, setPromptModel] = useState("");   // model stored ON the prompt
+  const [temperature, setTemperature] = useState<number>(1.0);
+  const [maxTokens, setMaxTokens] = useState<number>(1024);
+  const [tools, setTools] = useState("[]");             // JSON string
   const [commitMsg, setCommitMsg] = useState("");
   const [loadedVersion, setLoadedVersion] = useState<number | null>(null);
+  const [showParams, setShowParams] = useState(false);
+  const [showTools, setShowTools] = useState(false);
+  const [toolsError, setToolsError] = useState(false);
+
+  function loadFromPrompt(p: PromptVersion) {
+    setContent(p.content ?? "");
+    setSystem(p.system ?? "");
+    setPromptModel(p.model ?? "");
+    const params = p.parameters ?? {};
+    setTemperature(typeof params.temperature === "number" ? params.temperature : 1.0);
+    setMaxTokens(typeof params.max_tokens === "number" ? params.max_tokens : 1024);
+    setTools(JSON.stringify(p.tools ?? [], null, 2));
+    setLoadedVersion(p.version);
+  }
 
   // Populate editor from active version once loaded
   useEffect(() => {
-    if (active && content === "") {
-      setContent(active.content);
-      setLoadedVersion(active.version);
+    if (active && loadedVersion === null) {
+      loadFromPrompt(active);
     }
   }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const vars = extractVariables(content);
-  const isDirty = content !== (versions.find(v => v.version === loadedVersion)?.content ?? active?.content ?? "");
+  const vars = [...new Set([...extractVariables(system), ...extractVariables(content)])];
+
+  function parsedTools(): object[] {
+    try { const t = JSON.parse(tools); setToolsError(false); return Array.isArray(t) ? t : []; }
+    catch { setToolsError(true); return []; }
+  }
+
+  const baseVersion = versions.find(v => v.version === loadedVersion) ?? active;
+  const isDirty =
+    content !== (baseVersion?.content ?? "") ||
+    system !== (baseVersion?.system ?? "") ||
+    promptModel !== (baseVersion?.model ?? "");
 
   // Test runner state
   const [varValues, setVarValues] = useState<Record<string, string>>({});
@@ -281,11 +310,17 @@ function PromptDetailView({
   const runTest = useMutation({
     mutationFn: () => {
       if (!orgId) throw new Error("No organization selected. Select an org before running.");
-      const compiled = compilePrompt(content, varValues);
+      const compiledUser = compilePrompt(content, varValues);
+      const compiledSystem = system ? compilePrompt(system, varValues) : undefined;
+      const messages: Array<{role: string; content: string}> = [];
+      if (compiledSystem) messages.push({ role: "system", content: compiledSystem });
+      messages.push({ role: "user", content: compiledUser });
       return playgroundApi.run({
         model,
-        messages: [{ role: "user", content: compiled }],
-        max_tokens: 1024,
+        system: compiledSystem,
+        messages: [{ role: "user", content: compiledUser }],
+        max_tokens: maxTokens,
+        temperature,
         org_id: orgId,
       });
     },
@@ -295,12 +330,19 @@ function PromptDetailView({
 
   // Save new version
   const save = useMutation({
-    mutationFn: () => promptsApi.create({
-      project_id: projectId,
-      name: promptName,
-      content,
-      commit_message: commitMsg || undefined,
-    }),
+    mutationFn: () => {
+      const t = parsedTools();
+      return promptsApi.create({
+        project_id: projectId,
+        name: promptName,
+        content,
+        system: system || undefined,
+        model: promptModel || undefined,
+        parameters: { temperature, max_tokens: maxTokens },
+        tools: t,
+        commit_message: commitMsg || undefined,
+      });
+    },
     onSuccess: (p) => {
       qc.invalidateQueries({ queryKey: ["prompt-versions", promptName, projectId] });
       qc.invalidateQueries({ queryKey: ["prompt-active", promptName, projectId] });
@@ -356,7 +398,7 @@ function PromptDetailView({
             <button
               onClick={() => {
                 const base = versions.find(v => v.version === loadedVersion) ?? active;
-                if (base) setContent(base.content);
+                if (base) loadFromPrompt(base);
               }}
               className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] text-ink-muted hover:text-ink-secondary border border-dark-border rounded-lg hover:bg-dark-raised transition-colors"
             >
@@ -397,16 +439,118 @@ function PromptDetailView({
             )}
           </div>
 
-          {/* Prompt textarea */}
-          <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
+          {/* System message */}
+          <div className="shrink-0 border-b border-dark-border">
+            <div className="flex items-center gap-2 px-4 py-1.5 bg-dark-raised/40 border-b border-dark-border/50">
+              <Bot className="w-3 h-3 text-ink-muted" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">System message</span>
+            </div>
+            <textarea
+              value={system}
+              onChange={e => setSystem(e.target.value)}
+              spellCheck={false}
+              rows={4}
+              placeholder={"You are a helpful assistant. {{role}}"}
+              className="w-full resize-none bg-dark-bg text-[12px] font-mono text-ink-secondary placeholder-ink-dim outline-none px-6 py-3 leading-relaxed"
+              style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace" }}
+            />
+          </div>
+
+          {/* User message / prompt body */}
+          <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
+            <div className="flex items-center gap-2 px-4 py-1.5 bg-dark-raised/40 border-b border-dark-border/50 shrink-0">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">User message</span>
+            </div>
             <textarea
               value={content}
               onChange={e => setContent(e.target.value)}
               spellCheck={false}
-              className="w-full h-full resize-none bg-dark-bg text-[13px] font-mono text-ink-primary placeholder-ink-dim outline-none px-6 py-5 leading-relaxed"
-              placeholder={"You are a helpful assistant.\n\nSummarize the following:\n\n{{input}}"}
+              className="flex-1 resize-none bg-dark-bg text-[13px] font-mono text-ink-primary placeholder-ink-dim outline-none px-6 py-4 leading-relaxed"
+              placeholder={"Summarize the following:\n\n{{input}}"}
               style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace" }}
             />
+          </div>
+
+          {/* Model & Parameters collapsible */}
+          <div className="shrink-0 border-t border-dark-border">
+            <button
+              onClick={() => setShowParams(p => !p)}
+              className="w-full flex items-center gap-2 px-4 py-2 hover:bg-dark-raised/40 transition-colors"
+            >
+              <Settings2 className="w-3.5 h-3.5 text-ink-muted" />
+              <span className="text-[11px] font-semibold text-ink-muted">Model &amp; Parameters</span>
+              {promptModel && (
+                <span className="text-[10px] text-ink-dim ml-1 font-mono">{promptModel}</span>
+              )}
+              <ChevronDown className={cn("w-3.5 h-3.5 text-ink-dim ml-auto transition-transform", showParams && "rotate-180")} />
+            </button>
+            {showParams && (
+              <div className="px-4 pb-3 space-y-3 bg-dark-bg border-t border-dark-border/50">
+                <div className="pt-2.5">
+                  <label className="text-[10px] font-semibold text-ink-muted uppercase tracking-wide block mb-1.5">Model (stored on prompt)</label>
+                  <ModelPicker orgId={null} value={promptModel} onChange={setPromptModel} className="text-[12px]" />
+                  <p className="text-[10px] text-ink-dim mt-1">Used by <code className="font-mono">prompt.invoke()</code> — override in code if needed.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-semibold text-ink-muted uppercase tracking-wide block mb-1">Temperature</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="range" min={0} max={2} step={0.05}
+                        value={temperature}
+                        onChange={e => setTemperature(parseFloat(e.target.value))}
+                        className="flex-1 accent-brand-500"
+                      />
+                      <span className="text-[11px] text-ink-secondary w-8 text-right">{temperature.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-ink-muted uppercase tracking-wide block mb-1">Max tokens</label>
+                    <input
+                      type="number" min={1} max={32768}
+                      value={maxTokens}
+                      onChange={e => setMaxTokens(parseInt(e.target.value) || 1024)}
+                      className="w-full bg-dark-raised border border-dark-border rounded-lg px-2.5 py-1 text-[12px] text-ink-primary focus:outline-none focus:border-brand-500/60"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Tools collapsible */}
+          <div className="shrink-0 border-t border-dark-border">
+            <button
+              onClick={() => setShowTools(t => !t)}
+              className="w-full flex items-center gap-2 px-4 py-2 hover:bg-dark-raised/40 transition-colors"
+            >
+              <Wrench className="w-3.5 h-3.5 text-ink-muted" />
+              <span className="text-[11px] font-semibold text-ink-muted">Tools</span>
+              {tools !== "[]" && tools.trim() !== "" && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20 ml-1">
+                  {(() => { try { const t = JSON.parse(tools); return Array.isArray(t) ? t.length : 0; } catch { return "!"; } })()} defined
+                </span>
+              )}
+              {toolsError && <span className="text-[10px] text-red-400 ml-1">invalid JSON</span>}
+              <ChevronDown className={cn("w-3.5 h-3.5 text-ink-dim ml-auto transition-transform", showTools && "rotate-180")} />
+            </button>
+            {showTools && (
+              <div className="px-4 pb-3 bg-dark-bg border-t border-dark-border/50">
+                <p className="text-[10px] text-ink-dim pt-2 pb-1.5">OpenAI tool definitions JSON array — available in <code className="font-mono">prompt.tools</code></p>
+                <textarea
+                  value={tools}
+                  onChange={e => { setTools(e.target.value); setToolsError(false); }}
+                  spellCheck={false}
+                  rows={6}
+                  placeholder={'[\n  {\n    "type": "function",\n    "function": {\n      "name": "search_web",\n      "description": "Search the web",\n      "parameters": { "type": "object", "properties": { "query": { "type": "string" } }, "required": ["query"] }\n    }\n  }\n]'}
+                  className={cn(
+                    "w-full resize-none bg-dark-raised border rounded-lg px-3 py-2 text-[11px] font-mono text-ink-secondary placeholder-ink-dim outline-none leading-relaxed",
+                    toolsError ? "border-red-500/40" : "border-dark-border focus:border-brand-500/60"
+                  )}
+                  style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace" }}
+                />
+              </div>
+            )}
           </div>
 
           {/* SDK snippet bar */}
@@ -540,7 +684,7 @@ function PromptDetailView({
                   v={v}
                   projectId={projectId}
                   isLoaded={loadedVersion === v.version}
-                  onLoad={(c) => { setContent(c); setLoadedVersion(v.version); }}
+                  onLoad={(vObj) => loadFromPrompt(vObj)}
                   onActivated={() => qc.invalidateQueries({ queryKey: ["prompt-active", promptName, projectId] })}
                 />
               ))}
@@ -555,13 +699,11 @@ function PromptDetailView({
 // ── Prompt list ────────────────────────────────────────────────────────────────
 
 function PromptListView({
-  projectId,
   prompts,
   isLoading,
   onSelect,
   onNew,
 }: {
-  projectId: string;
   prompts: PromptVersion[];
   isLoading: boolean;
   onSelect: (name: string) => void;
@@ -712,7 +854,6 @@ export default function PromptsPage() {
   return (
     <>
       <PromptListView
-        projectId={selectedProject.id}
         prompts={prompts}
         isLoading={isLoading}
         onSelect={setSelectedName}
