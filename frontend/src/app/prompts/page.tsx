@@ -166,8 +166,13 @@ function VersionItem({
         <p className="text-[11px] text-ink-muted mb-1.5 truncate">{v.commit_message}</p>
       )}
 
+      {v.system && (
+        <p className="text-[10px] font-mono text-ink-dim/60 line-clamp-1 mb-0.5 italic">
+          sys: {v.system.slice(0, 60)}{v.system.length > 60 ? "…" : ""}
+        </p>
+      )}
       <pre className="text-[10px] font-mono text-ink-dim line-clamp-2 whitespace-pre-wrap mb-2">
-        {v.content.slice(0, 100)}{v.content.length > 100 ? "…" : ""}
+        {v.content.slice(0, 80)}{v.content.length > 80 ? "…" : ""}
       </pre>
 
       <div className="flex items-center gap-1">
@@ -245,6 +250,7 @@ function PromptDetailView({
   const [maxTokens, setMaxTokens] = useState<number>(1024);
   const [tools, setTools] = useState("[]");             // JSON string
   const [commitMsg, setCommitMsg] = useState("");
+  const [versionLabel, setVersionLabel] = useState("");
   const [loadedVersion, setLoadedVersion] = useState<number | null>(null);
   const [showParams, setShowParams] = useState(false);
   const [showTools, setShowTools] = useState(false);
@@ -258,6 +264,7 @@ function PromptDetailView({
     setTemperature(typeof params.temperature === "number" ? params.temperature : 1.0);
     setMaxTokens(typeof params.max_tokens === "number" ? params.max_tokens : 1024);
     setTools(JSON.stringify(p.tools ?? [], null, 2));
+    setVersionLabel(p.label ?? "");
     setLoadedVersion(p.version);
   }
 
@@ -340,6 +347,7 @@ function PromptDetailView({
         model: promptModel || undefined,
         parameters: { temperature, max_tokens: maxTokens },
         tools: t,
+        label: versionLabel || undefined,
         commit_message: commitMsg || undefined,
       });
     },
@@ -348,6 +356,7 @@ function PromptDetailView({
       qc.invalidateQueries({ queryKey: ["prompt-active", promptName, projectId] });
       qc.invalidateQueries({ queryKey: ["prompts", projectId] });
       setCommitMsg("");
+      setVersionLabel("");
       setLoadedVersion(p.version);
     },
   });
@@ -422,14 +431,23 @@ function PromptDetailView({
         {/* Left: editor */}
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {/* Commit message bar */}
-          <div className="flex items-center gap-3 px-4 py-2 border-b border-dark-border bg-dark-bg shrink-0">
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-dark-border bg-dark-bg shrink-0">
             <Code2 className="w-3.5 h-3.5 text-ink-muted shrink-0" />
             <input
               value={commitMsg}
               onChange={e => setCommitMsg(e.target.value)}
               placeholder="Describe this version… (optional)"
-              className="flex-1 bg-transparent text-[12px] text-ink-secondary placeholder-ink-dim outline-none"
+              className="flex-1 bg-transparent text-[12px] text-ink-secondary placeholder-ink-dim outline-none min-w-0"
             />
+            <div className="flex items-center gap-1 shrink-0">
+              <Tag className="w-3 h-3 text-ink-muted" />
+              <input
+                value={versionLabel}
+                onChange={e => setVersionLabel(e.target.value.replace(/\s+/g, "-").toLowerCase())}
+                placeholder="label (optional)"
+                className="bg-transparent text-[11px] text-ink-muted placeholder-ink-dim outline-none w-28 font-mono"
+              />
+            </div>
             {vars.length > 0 && (
               <div className="flex items-center gap-1 shrink-0">
                 {vars.map(v => (
@@ -557,11 +575,23 @@ function PromptDetailView({
           <div className="shrink-0 border-t border-dark-border bg-dark-bg px-4 py-2.5">
             <div className="flex items-center gap-2">
               <Hash className="w-3 h-3 text-ink-muted" />
-              <pre className="text-[10px] font-mono text-ink-dim flex-1 truncate">
-                {`import dottle; prompt = dottle.get_prompt("${promptName}"); text = prompt.compile(${vars.map(v => `${v}="..."`).join(", ")})`}
-              </pre>
+              {promptModel ? (
+                <pre className="text-[10px] font-mono text-ink-dim flex-1 truncate">
+                  {`prompt = dottle.get_prompt("${promptName}")${vars.length ? `; result = prompt.invoke(${vars.map(v => `${v}="..."`).join(", ")})` : "; result = prompt.invoke()"}`}
+                </pre>
+              ) : (
+                <pre className="text-[10px] font-mono text-ink-dim flex-1 truncate">
+                  {`prompt = dottle.get_prompt("${promptName}")${vars.length ? `; msgs = prompt.compile(${vars.map(v => `${v}="..."`).join(", ")})` : "; msgs = prompt.compile()"}`}
+                </pre>
+              )}
               <button
-                onClick={() => navigator.clipboard.writeText(`import dottle\nprompt = dottle.get_prompt("${promptName}")\ntext = prompt.compile(${vars.map(v => `${v}="..."`).join(", ")})`)}
+                onClick={() => {
+                  const varArgs = vars.map(v => `${v}="..."`).join(", ");
+                  const body = promptModel
+                    ? `import dottle\nprompt = dottle.get_prompt("${promptName}")\nresult = prompt.invoke(${varArgs})`
+                    : `import dottle\nprompt = dottle.get_prompt("${promptName}")\nmsgs = prompt.compile(${varArgs})\n# pass msgs to your LLM client`;
+                  navigator.clipboard.writeText(body);
+                }}
                 className="p-1 rounded hover:bg-dark-raised text-ink-dim hover:text-ink-muted transition-colors shrink-0"
               >
                 <Copy className="w-3 h-3" />

@@ -1,14 +1,14 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { experimentsApi, datasetsApi, type ExperimentSummary, type ExperimentDetail, type ExperimentVariant } from "@/lib/api";
+import { experimentsApi, datasetsApi, promptsApi, type ExperimentSummary, type ExperimentDetail, type ExperimentVariant } from "@/lib/api";
 import { useProject } from "@/lib/project-context";
 import { useOrg } from "@/lib/org-context";
 import { ModelPicker } from "@/components/ui/model-picker";
-import { DatasetSummary } from "@/lib/types";
+import { DatasetSummary, PromptVersion } from "@/lib/types";
 import {
   FlaskConical, Plus, Play, Trash2, ChevronRight, Check,
-  Loader2, Trophy, Minus, RefreshCw, AlertCircle,
+  Loader2, Trophy, Minus, RefreshCw, AlertCircle, Tag,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -35,12 +35,29 @@ function VariantForm({
   value,
   onChange,
   orgId,
+  prompts,
 }: {
   label: string;
   value: ExperimentVariant;
   onChange: (v: ExperimentVariant) => void;
   orgId: string | null;
+  prompts: PromptVersion[];
 }) {
+  const [loadedFrom, setLoadedFrom] = useState<string>("");
+
+  function loadPrompt(name: string) {
+    if (!name) { setLoadedFrom(""); return; }
+    const p = prompts.find(p => p.name === name);
+    if (!p) return;
+    setLoadedFrom(name);
+    onChange({
+      ...value,
+      system_prompt: p.system || "",
+      model: p.model || value.model,
+      label: value.label || p.name,
+    });
+  }
+
   return (
     <div className="space-y-3 p-4 bg-dark-raised border border-dark-border rounded-xl">
       <p className="text-[11px] font-bold uppercase tracking-widest text-ink-dim">{label}</p>
@@ -50,6 +67,31 @@ function VariantForm({
         <input className="input-dark" placeholder={`e.g. ${label} — GPT-4o + new prompt`}
           value={value.label ?? ""} onChange={e => onChange({ ...value, label: e.target.value })} />
       </div>
+
+      {prompts.length > 0 && (
+        <div>
+          <label className="form-label flex items-center gap-1.5">
+            <Tag className="w-3 h-3" />Load from prompt library
+          </label>
+          <select
+            className="input-dark text-[12px]"
+            value={loadedFrom}
+            onChange={e => loadPrompt(e.target.value)}
+          >
+            <option value="">— manual entry —</option>
+            {prompts.map(p => (
+              <option key={p.id} value={p.name}>
+                {p.name} {p.model ? `(${p.model})` : ""}
+              </option>
+            ))}
+          </select>
+          {loadedFrom && (
+            <p className="text-[10px] text-brand-400 mt-1">
+              Loaded system prompt from &ldquo;{loadedFrom}&rdquo; — edit below to customise.
+            </p>
+          )}
+        </div>
+      )}
 
       <div>
         <label className="form-label">Model</label>
@@ -92,6 +134,12 @@ function CreateModal({
   const [variantB, setVariantB] = useState<ExperimentVariant>({ model: "claude-sonnet-4-6", system_prompt: "", label: "Variant B" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  const { data: prompts = [] } = useQuery({
+    queryKey: ["prompts", projectId],
+    queryFn: () => promptsApi.list(projectId),
+    staleTime: 30_000,
+  });
 
   async function handleCreate() {
     if (!name.trim()) { setError("Name is required"); return; }
@@ -161,8 +209,8 @@ function CreateModal({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <VariantForm label="Variant A" value={variantA} onChange={setVariantA} orgId={orgId} />
-            <VariantForm label="Variant B" value={variantB} onChange={setVariantB} orgId={orgId} />
+            <VariantForm label="Variant A" value={variantA} onChange={setVariantA} orgId={orgId} prompts={prompts} />
+            <VariantForm label="Variant B" value={variantB} onChange={setVariantB} orgId={orgId} prompts={prompts} />
           </div>
 
           <div className="flex justify-end gap-2 pt-2">

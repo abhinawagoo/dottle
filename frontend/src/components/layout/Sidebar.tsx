@@ -33,7 +33,7 @@ const NAV_BOTTOM = [
   { href: "/evals",            label: "Evaluators",  icon: Bot        },
   { href: "/datasets",         label: "Datasets",    icon: Database   },
   { href: "/sessions/compare", label: "Compare",     icon: GitCompare },
-  { href: "/experiments",      label: "Experiments", icon: FlaskConical, badge: "soon" as const },
+  { href: "/experiments",      label: "Experiments", icon: FlaskConical },
 ];
 
 const MIN_WIDTH = 52;
@@ -202,9 +202,9 @@ export default function Sidebar() {
 
             <Separator className="my-2 mx-1" />
 
-            {NAV_BOTTOM.map(({ href, label, icon, badge }) => {
+            {NAV_BOTTOM.map(({ href, label, icon }) => {
               const active = pathname === href || (href !== "/" && pathname.startsWith(href));
-              return <NavItem key={href} href={href} label={label} icon={icon} active={active} badge={badge} collapsed={collapsed} />;
+              return <NavItem key={href} href={href} label={label} icon={icon} active={active} collapsed={collapsed} />;
             })}
           </nav>
 
