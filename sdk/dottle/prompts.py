@@ -52,6 +52,7 @@ class PromptHandle:
         parameters:  LLM parameters dict (temperature, max_tokens, …)
         tools:       OpenAI-format tool definitions list
         variables:   List of {{variable}} names detected in the prompt
+        messages:    Uncompiled messages list (system + user) — use .compile() to fill variables
     """
 
     def __init__(self, data: dict, config: Optional[AgentLoopConfig] = None):
@@ -141,7 +142,15 @@ class PromptHandle:
         if tools:
             kwargs["tools"] = tools
         resp = client.chat.completions.create(**kwargs)
-        return resp.choices[0].message.content or ""
+        msg = resp.choices[0].message
+        if msg.content:
+            return msg.content
+        if msg.tool_calls:
+            raise ValueError(
+                "The model responded with a tool call instead of text. "
+                "Use .compile() and call the LLM directly to handle tool call loops."
+            )
+        return ""
 
     def _invoke_anthropic(
         self,
@@ -179,7 +188,13 @@ class PromptHandle:
                 for t in tools
             ]
         resp = client.messages.create(**kwargs)
-        return resp.content[0].text
+        block = resp.content[0]
+        if block.type == "text":
+            return block.text
+        raise ValueError(
+            f"The model responded with a '{block.type}' block instead of text. "
+            "Use .compile() and call the LLM directly to handle tool call loops."
+        )
 
     def _invoke_gemini(
         self,

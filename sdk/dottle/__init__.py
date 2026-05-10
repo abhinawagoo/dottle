@@ -1,7 +1,7 @@
 """
 Dottle SDK — Instrument your AI agents in 3 lines of code.
 
-Quick start:
+Quick start (observability):
     import dottle
 
     dottle.configure(api_key="dtl_live_...")
@@ -20,8 +20,27 @@ Async agents:
             result = await llm.complete(prompt)
             s.record_tokens(input=512, output=128, model="gpt-4o")
 
+Prompt management (Braintrust-style):
+    import dottle
+
+    dottle.configure(api_key="dtl_live_...", project_id="<uuid>")
+
+    # Always fetches the active version — changes in the dashboard are live instantly
+    prompt = dottle.get_prompt("summarize-article")
+
+    # Compile {{variable}} placeholders
+    messages = prompt.compile(article=text, language="English")
+
+    # Or call the AI provider directly (routes by model name)
+    result = prompt.invoke(article=text, language="English")
+
+    # Pin to a version or label
+    prompt = dottle.get_prompt("summarize-article", version=3)
+    prompt = dottle.get_prompt("summarize-article", label="production")
+
 Framework integrations:
-    from dottle.integrations.crewai import instrument_crew
+    from dottle.integrations.langchain import DottleCallbackHandler
+    from dottle.integrations.crewai import DottleCrewCallback
     from dottle.integrations.autogen import instrument_agent
     from dottle.integrations.agno import instrument_agno_agent
 """
