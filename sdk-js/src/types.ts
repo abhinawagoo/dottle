@@ -3,6 +3,8 @@ export interface DottleConfig {
   apiKey: string;
   /** Backend URL — defaults to https://dottle-production.up.railway.app/api/v1 */
   apiUrl?: string;
+  /** Project ID — required for prompt management (DOTTLE_PROJECT_ID env var) */
+  projectId?: string;
   /** Log flush confirmations to console (default: false) */
   debug?: boolean;
   /** No-op mode — useful in tests (default: false) */

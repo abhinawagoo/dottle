@@ -86,6 +86,72 @@ await dottle.session("my-agent", async () => {
 
 ---
 
+## Prompt management
+
+Version-control your prompts in the Dottle dashboard and fetch them at runtime — changes in the UI are live immediately (after the cache TTL).
+
+```typescript
+import dottle from "dottle-sdk";
+
+dottle.configure({
+  apiKey: process.env.DOTTLE_API_KEY!,
+  projectId: process.env.DOTTLE_PROJECT_ID,  // or pass per-call
+});
+
+// Fetch active version (cached 60 s by default)
+const prompt = await dottle.getPrompt("summarize-article");
+
+// Compile {{variable}} placeholders → messages array
+const messages = prompt.compile({ article: text, language: "English" });
+// → [{ role: "system", content: "..." }, { role: "user", content: "..." }]
+
+// Pass to any LLM client
+const res = await openai.chat.completions.create({
+  model: prompt.model,
+  messages,
+  ...prompt.parameters,   // temperature, max_tokens, etc.
+});
+
+// Or let Dottle call the model directly (auto-tracked as a span inside a session)
+const result = await prompt.invoke({ article: text, language: "English" });
+```
+
+### Version pinning
+
+```typescript
+// Pin to a specific version
+const v3 = await dottle.getPrompt("summarize-article", { version: 3 });
+
+// Pin to a named label
+const prod = await dottle.getPrompt("summarize-article", { label: "production" });
+```
+
+### Cache control
+
+```typescript
+// Custom TTL (default 60 s)
+const prompt = await dottle.getPrompt("summarize-article", { ttl: 300 });
+
+// Bypass cache
+const fresh = await dottle.getPrompt("summarize-article", { ttl: 0 });
+
+// Clear cache (useful in tests)
+dottle.clearPromptCache();
+```
+
+### Auto-tracking inside a session
+
+When `.invoke()` is called inside a `dottle.session()`, it automatically creates an LLM span with prompt name, version, token counts, and cost:
+
+```typescript
+await dottle.session("my-agent", async () => {
+  const result = await prompt.invoke({ article: text });
+  // Dashboard shows span "summarize-article v3" with tokens + cost
+});
+```
+
+---
+
 ## What gets tracked
 
 | Signal | How |
@@ -118,6 +184,7 @@ await dottle.session("research-agent", async () => {
 ```typescript
 dottle.configure({
   apiKey: "dtl_live_...",          // required
+  projectId: "<uuid>",             // required for prompt management
   apiUrl: "https://...",           // optional — defaults to production
   debug: true,                     // log flush events to console
   disabled: false,                 // set true in tests to suppress all HTTP

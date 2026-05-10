@@ -22,9 +22,11 @@ import { DottleConfig, SpanType, SessionOptions } from "./types";
 import { DottleClient, getClient, initClient } from "./client";
 import { SpanContext, runSpan, runWithStore, getCurrentStore } from "./span";
 import { wrapOpenAI, wrapAnthropic, wrapGroq, wrapGemini } from "./wrappers";
+import { getPrompt, clearPromptCache, PromptHandle, GetPromptOptions } from "./prompts";
 
 export { DottleConfig, SpanType, SpanContext, SessionOptions };
 export { wrapOpenAI, wrapAnthropic, wrapGroq, wrapGemini };
+export { getPrompt, clearPromptCache, PromptHandle, GetPromptOptions };
 
 // ── configure ──────────────────────────────────────────────────────────────────
 
@@ -125,6 +127,9 @@ const dottle = {
   wrapGemini,
   shutdown,
   getCurrentSessionId,
+  // Prompt management
+  getPrompt,
+  clearPromptCache,
 };
 
 export default dottle;

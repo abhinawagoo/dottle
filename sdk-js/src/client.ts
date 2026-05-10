@@ -4,7 +4,7 @@ import { maybeRedact } from "./redaction";
 interface BufferedSpan { sessionId: string; span: SpanData }
 
 export class DottleClient {
-  private config: Required<Omit<DottleConfig, 'apiUrl'>> & { apiUrl: string };
+  private config: Required<Omit<DottleConfig, 'apiUrl' | 'projectId'>> & { apiUrl: string; projectId?: string };
   private buffer: BufferedSpan[] = [];
   private currentSessionId: string | null = null;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
@@ -164,6 +164,15 @@ export class DottleClient {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
     }
+  }
+
+  /** Expose config fields needed by the prompt module. */
+  getConfig(): { apiUrl: string; apiKey: string; projectId: string | undefined } {
+    return {
+      apiUrl: this.config.apiUrl,
+      apiKey: this.config.apiKey,
+      projectId: this.config.projectId ?? (typeof process !== "undefined" ? process.env["DOTTLE_PROJECT_ID"] : undefined),
+    };
   }
 
   // ── HTTP ────────────────────────────────────────────────────────────────────
