@@ -140,6 +140,38 @@ response = openai_client.chat.completions.create(
 )
 ```
 
+### Auto-tracking inside a session
+
+When `.invoke()` is called inside a `dottle.session()`, it automatically creates an LLM span with the prompt name, version, token counts, and cost — no extra code needed:
+
+```python
+with dottle.session("my-agent") as sid:
+    result = prompt.invoke(article=text)
+    # ↑ recorded in the dashboard as span "summarize-article v3"
+    #   with input_tokens, output_tokens, cost, and prompt text
+```
+
+### Caching
+
+`get_prompt()` caches the active version in-process for 60 seconds by default, so hot paths don't hit the API on every request:
+
+```python
+# Default: 60-second TTL
+prompt = dottle.get_prompt("summarize-article")
+
+# Custom TTL
+prompt = dottle.get_prompt("summarize-article", ttl=300)  # 5 minutes
+
+# Bypass cache (always fetch fresh)
+prompt = dottle.get_prompt("summarize-article", ttl=0)
+
+# Pinned version/label fetches are never cached
+prompt = dottle.get_prompt("summarize-article", version=3)
+
+# Clear cache (useful in tests)
+dottle.clear_prompt_cache()
+```
+
 ### PromptHandle attributes
 
 | Attribute | Type | Description |

@@ -50,9 +50,9 @@ from dottle.context import session, span, async_session, async_span
 from dottle.decorators import task, tool_call, llm_call
 from dottle.client import get_client, reset_client
 from dottle.wrappers import wrap_openai, wrap_anthropic
-from dottle.prompts import get_prompt, PromptHandle
+from dottle.prompts import get_prompt, PromptHandle, clear_prompt_cache
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 __all__ = [
     # Config
     "configure",
@@ -77,4 +77,5 @@ __all__ = [
     # Prompt management
     "get_prompt",
     "PromptHandle",
+    "clear_prompt_cache",
 ]
