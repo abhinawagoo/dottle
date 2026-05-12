@@ -39,8 +39,9 @@ export function SideDrawer({
   const startX = useRef(0);
   const startWidth = useRef(0);
 
-  // Initialise width from prop or default to 60vw
+  // Initialise width from prop or default to 60vw (SSR-safe)
   const [drawerWidth, setDrawerWidth] = useState<number>(() => {
+    if (typeof window === "undefined") return 800; // SSR fallback
     if (width && width.endsWith("px")) return parseInt(width, 10);
     return Math.round(window.innerWidth * DEFAULT_VW / 100);
   });
