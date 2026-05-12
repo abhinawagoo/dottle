@@ -33,32 +33,8 @@ export default function SessionsPage() {
   const { selectedProject } = useProject();
   const PROJECT_ID = selectedProject?.id ?? "";
 
-  // Drawer state
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  // Compare state
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set());
-
-  function toggleCompare(id: string) {
-    setCompareIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else if (next.size < 2) next.add(id);
-      return next;
-    });
-  }
-
-  function exportSessions(fmt: "csv" | "json") {
-    const params = new URLSearchParams({ project_id: PROJECT_ID, format: fmt, limit: "5000" });
-    if (statusFilter) params.set("status", statusFilter);
-    if (tagFilter) params.set("tag", tagFilter);
-    if (userFilter) params.set("user_email", userFilter);
-    if (search) params.set("search", search);
-    if (loopFilter) params.set("loop_detected", "true");
-    window.open(
-      `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1/sessions/export?${params}`,
-      "_blank"
-    );
-  }
 
   const [page, setPage]               = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
@@ -86,12 +62,43 @@ export default function SessionsPage() {
     enabled: !!PROJECT_ID,
   });
 
+  const sessions = data?.items ?? [];
   const totalPages = Math.ceil((data?.total ?? 0) / 25);
   const hasFilters = !!statusFilter || loopFilter || !!search || !!tagFilter || !!userFilter;
+
+  // Drawer navigation
+  const currentIndex = sessions.findIndex(s => s.id === selectedSessionId);
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex < sessions.length - 1;
+  function goToPrev() { if (hasPrev) setSelectedSessionId(sessions[currentIndex - 1].id); }
+  function goToNext() { if (hasNext) setSelectedSessionId(sessions[currentIndex + 1].id); }
+
+  function toggleCompare(id: string) {
+    setCompareIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else if (next.size < 2) next.add(id);
+      return next;
+    });
+  }
+
+  function exportSessions(fmt: "csv" | "json") {
+    const params = new URLSearchParams({ project_id: PROJECT_ID, format: fmt, limit: "5000" });
+    if (statusFilter) params.set("status", statusFilter);
+    if (tagFilter) params.set("tag", tagFilter);
+    if (userFilter) params.set("user_email", userFilter);
+    if (search) params.set("search", search);
+    if (loopFilter) params.set("loop_detected", "true");
+    window.open(
+      `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1/sessions/export?${params}`,
+      "_blank"
+    );
+  }
 
   function applySearch()    { setSearch(searchInput); setPage(1); }
   function applyTagFilter() { setTagFilter(tagInput.trim()); setPage(1); }
   function applyUserFilter(){ setUserFilter(userInput.trim()); setPage(1); }
+  function applyAll()       { applySearch(); applyTagFilter(); applyUserFilter(); }
 
   function clearAll() {
     setStatusFilter(""); setLoopFilter(false);
@@ -101,114 +108,142 @@ export default function SessionsPage() {
     setPage(1);
   }
 
+  const selectedSession = sessions.find(s => s.id === selectedSessionId);
+
   return (
     <>
-      <div className="space-y-4 max-w-7xl mx-auto">
+      <div className="space-y-3 max-w-7xl mx-auto">
 
-        {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <div>
-              <h1 className="text-lg font-semibold text-ink-primary">Sessions</h1>
-              <p className="text-xs text-ink-muted mt-0.5">
-                {data?.total ?? 0} total agent runs
-              </p>
-            </div>
-            {PROJECT_ID && (
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => exportSessions("csv")}
-                  className="flex items-center gap-1 text-[11px] text-ink-muted hover:text-ink-secondary border border-dark-border rounded px-2 py-1 transition-colors"
-                >
-                  <Download className="w-3 h-3" /> CSV
-                </button>
-                <button
-                  onClick={() => exportSessions("json")}
-                  className="flex items-center gap-1 text-[11px] text-ink-muted hover:text-ink-secondary border border-dark-border rounded px-2 py-1 transition-colors"
-                >
-                  <Download className="w-3 h-3" /> JSON
-                </button>
-                {compareIds.size === 2 && (
-                  <Link
-                    href={`/sessions/compare?a=${[...compareIds][0]}&b=${[...compareIds][1]}`}
-                    className="flex items-center gap-1 text-[11px] text-white bg-brand-600 hover:bg-brand-500 border border-brand-500 rounded px-2 py-1 transition-colors font-medium"
-                  >
-                    <GitCompare className="w-3 h-3" /> Compare (2)
-                  </Link>
-                )}
-                {compareIds.size > 0 && compareIds.size < 2 && (
-                  <span className="text-[11px] text-ink-dim border border-dark-border rounded px-2 py-1">
-                    Select {2 - compareIds.size} more to compare
-                  </span>
-                )}
-              </div>
-            )}
+        {/* ── Compact toolbar ─────────────────────────────────────────────── */}
+        <div className="flex items-center gap-2 flex-wrap">
+
+          {/* Title + count */}
+          <div className="flex items-center gap-2 mr-1">
+            <h1 className="text-sm font-semibold text-ink-primary">Sessions</h1>
+            <span className="text-[11px] text-ink-dim bg-dark-raised border border-dark-border px-2 py-0.5 rounded-full tabular-nums">
+              {data?.total ?? 0}
+            </span>
           </div>
 
-          {/* Filters */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-dim pointer-events-none" />
-              <input
-                type="text" placeholder="Agent name…" value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && applySearch()}
-                className="input-dark pl-8 pr-3 w-40 text-xs"
-              />
-            </div>
-            <div className="relative">
-              <Tag className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-dim pointer-events-none" />
-              <input
-                type="text" placeholder="Tag…" value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && applyTagFilter()}
-                className="input-dark pl-8 pr-3 w-32 text-xs"
-              />
-            </div>
-            <div className="relative">
-              <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-dim pointer-events-none" />
-              <input
-                type="text" placeholder="User email…" value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && applyUserFilter()}
-                className="input-dark pl-8 pr-3 w-36 text-xs"
-              />
-            </div>
-            <Button variant="secondary" size="sm" onClick={() => { applySearch(); applyTagFilter(); applyUserFilter(); }}>
-              Search
-            </Button>
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-              className="input-dark w-auto text-xs"
+          {/* Divider */}
+          <div className="w-px h-4 bg-dark-divider mx-0.5" />
+
+          {/* Search — agent name */}
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-ink-dim pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Agent…"
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && applyAll()}
+              className="input-dark pl-6 pr-2 h-7 w-28 text-[11px]"
+            />
+          </div>
+
+          {/* Tag */}
+          <div className="relative">
+            <Tag className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-ink-dim pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Tag…"
+              value={tagInput}
+              onChange={e => setTagInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && applyAll()}
+              className="input-dark pl-6 pr-2 h-7 w-24 text-[11px]"
+            />
+          </div>
+
+          {/* User email */}
+          <div className="relative">
+            <User className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-ink-dim pointer-events-none" />
+            <input
+              type="text"
+              placeholder="User…"
+              value={userInput}
+              onChange={e => setUserInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && applyAll()}
+              className="input-dark pl-6 pr-2 h-7 w-28 text-[11px]"
+            />
+          </div>
+
+          {/* Status */}
+          <select
+            value={statusFilter}
+            onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
+            className="input-dark h-7 text-[11px] w-auto pr-6"
+          >
+            <option value="">All statuses</option>
+            <option value="running">Running</option>
+            <option value="completed">Completed</option>
+            <option value="failed">Failed</option>
+            <option value="looping">Looping</option>
+            <option value="timed_out">Timed out</option>
+          </select>
+
+          {/* Loops only toggle */}
+          <label className="flex items-center gap-1.5 text-[11px] text-ink-muted cursor-pointer select-none whitespace-nowrap h-7 px-2 rounded border border-dark-border hover:border-dark-border/80 transition-colors">
+            <input
+              type="checkbox"
+              checked={loopFilter}
+              onChange={e => { setLoopFilter(e.target.checked); setPage(1); }}
+              className="rounded border-dark-border bg-dark-raised accent-brand-500 w-3 h-3"
+            />
+            Loops
+          </label>
+
+          {/* Clear filters */}
+          {hasFilters && (
+            <button
+              onClick={clearAll}
+              className="flex items-center gap-1 text-[11px] text-ink-muted hover:text-ink-secondary h-7 px-2 rounded border border-dark-border/60 transition-colors"
             >
-              <option value="">All statuses</option>
-              <option value="running">Running</option>
-              <option value="completed">Completed</option>
-              <option value="failed">Failed</option>
-              <option value="looping">Looping</option>
-              <option value="timed_out">Timed out</option>
-            </select>
-            <label className="flex items-center gap-2 text-xs text-ink-muted cursor-pointer select-none whitespace-nowrap">
-              <input
-                type="checkbox" checked={loopFilter}
-                onChange={(e) => { setLoopFilter(e.target.checked); setPage(1); }}
-                className="rounded border-dark-border bg-dark-raised accent-brand-500"
-              />
-              Loops only
-            </label>
-            {hasFilters && (
-              <button onClick={clearAll} className="flex items-center gap-1 text-[11px] text-ink-muted hover:text-ink-secondary transition-colors">
-                <X className="w-3 h-3" /> Clear
+              <X className="w-3 h-3" /> Clear
+            </button>
+          )}
+
+          {/* Push rest to the right */}
+          <div className="flex-1" />
+
+          {/* Compare */}
+          {compareIds.size === 2 && (
+            <Link
+              href={`/sessions/compare?a=${[...compareIds][0]}&b=${[...compareIds][1]}`}
+              className="flex items-center gap-1 text-[11px] text-white bg-brand-600 hover:bg-brand-500 border border-brand-500 rounded-md px-2 h-7 transition-colors font-medium"
+            >
+              <GitCompare className="w-3 h-3" /> Compare (2)
+            </Link>
+          )}
+          {compareIds.size === 1 && (
+            <span className="text-[11px] text-ink-dim border border-dark-border rounded-md px-2 h-7 flex items-center">
+              Select 1 more
+            </span>
+          )}
+
+          {/* Export */}
+          {PROJECT_ID && (
+            <>
+              <button
+                onClick={() => exportSessions("csv")}
+                className="flex items-center gap-1 text-[11px] text-ink-muted hover:text-ink-secondary border border-dark-border rounded-md px-2 h-7 transition-colors"
+                title="Export CSV"
+              >
+                <Download className="w-3 h-3" /> CSV
               </button>
-            )}
-          </div>
+              <button
+                onClick={() => exportSessions("json")}
+                className="flex items-center gap-1 text-[11px] text-ink-muted hover:text-ink-secondary border border-dark-border rounded-md px-2 h-7 transition-colors"
+                title="Export JSON"
+              >
+                <Download className="w-3 h-3" /> JSON
+              </button>
+            </>
+          )}
         </div>
 
         {/* Active filter pills */}
         {hasFilters && (
-          <div className="flex items-center gap-2 flex-wrap text-[11px]">
-            <span className="text-ink-dim">Filters:</span>
+          <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
             {search && <span className="pill-filter">agent: {search}</span>}
             {statusFilter && <span className="pill-filter">status: {statusFilter}</span>}
             {loopFilter && <span className="pill-filter">loops only</span>}
@@ -217,6 +252,7 @@ export default function SessionsPage() {
           </div>
         )}
 
+        {/* ── Table ─────────────────────────────────────────────────────────── */}
         <Card>
           {isLoading ? (
             <div className="space-y-2 py-2">
@@ -229,7 +265,7 @@ export default function SessionsPage() {
               description="Create a project in Settings to get your API key and start tracking sessions."
               action={<Link href="/settings"><Button icon={<ArrowRight />}>Go to Settings</Button></Link>}
             />
-          ) : !data?.items.length ? (
+          ) : !sessions.length ? (
             <EmptyState
               icon={<Layers />}
               title="No sessions found"
@@ -257,12 +293,12 @@ export default function SessionsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.items.map((s) => (
+                  {sessions.map((s) => (
                     <tr
                       key={s.id}
                       onClick={() => setSelectedSessionId(s.id)}
                       className={`table-row-hover border-b border-dark-divider/40 last:border-0 cursor-pointer ${
-                        selectedSessionId === s.id ? "bg-brand-500/5" : ""
+                        selectedSessionId === s.id ? "bg-brand-500/5 border-l-2 border-l-brand-500" : ""
                       } ${compareIds.has(s.id) ? "bg-brand-500/5" : ""}`}
                     >
                       <td className="py-2.5 pr-3 w-5" onClick={e => { e.stopPropagation(); toggleCompare(s.id); }}>
@@ -278,9 +314,7 @@ export default function SessionsPage() {
                       <td className="py-2.5 pr-4 max-w-[220px]">
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-2">
-                            <span className="text-brand-400 font-medium text-xs truncate">
-                              {s.agent_name}
-                            </span>
+                            <span className="text-brand-400 font-medium text-xs truncate">{s.agent_name}</span>
                             {s.loop_detected && <LoopBadge />}
                           </div>
                           <div className="flex items-center gap-1.5 flex-wrap">
@@ -334,7 +368,7 @@ export default function SessionsPage() {
               {/* Pagination */}
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-dark-divider">
                 <span className="text-[11px] text-ink-muted">
-                  Page {page} of {totalPages} · {data.total} results
+                  Page {page} of {totalPages} · {data?.total} results
                 </span>
                 <div className="flex items-center gap-2">
                   <Button variant="secondary" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)} icon={<ChevronLeft />}>Prev</Button>
@@ -348,11 +382,20 @@ export default function SessionsPage() {
         </Card>
       </div>
 
-      {/* Session detail side drawer */}
+      {/* ── Session detail drawer ───────────────────────────────────────────── */}
       <SideDrawer
         open={!!selectedSessionId}
         onClose={() => setSelectedSessionId(null)}
-        width="800px"
+        title={selectedSession?.agent_name}
+        subtitle={
+          selectedSession
+            ? `${currentIndex + 1} of ${sessions.length} · ${selectedSession.status}`
+            : undefined
+        }
+        onPrev={goToPrev}
+        onNext={goToNext}
+        hasPrev={hasPrev}
+        hasNext={hasNext}
       >
         {selectedSessionId && (
           <SessionDetailPanel sessionId={selectedSessionId} />
