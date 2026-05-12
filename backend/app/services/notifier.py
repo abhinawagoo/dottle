@@ -69,6 +69,7 @@ async def send_slack(
     threshold: float,
     window_minutes: int,
     frontend_url: str,
+    ai_summary: str | None = None,
 ) -> bool:
     metric_label = METRIC_LABELS.get(metric, metric)
     metric_emoji = METRIC_EMOJIS.get(metric, "🚨")
@@ -77,50 +78,63 @@ async def send_slack(
     threshold_fmt = f"${threshold:.2f}" if metric == "cost_per_session" else f"{threshold}{unit}"
     value_fmt = _format_value(metric, metric_value)
 
-    payload = {
-        "blocks": [
-            {
-                "type": "header",
-                "text": {
-                    "type": "plain_text",
-                    "text": f"{metric_emoji} {rule_name}",
-                    "emoji": True,
-                }
-            },
-            {
-                "type": "section",
-                "fields": [
-                    {"type": "mrkdwn", "text": f"*Metric:*\n{metric_label}"},
-                    {"type": "mrkdwn", "text": f"*Current Value:*\n`{value_fmt}`"},
-                    {"type": "mrkdwn", "text": f"*Threshold:*\n{op_label} {threshold_fmt}"},
-                    {"type": "mrkdwn", "text": f"*Window:*\nLast {window_minutes} min"},
-                ]
-            },
-            {"type": "divider"},
-            {
-                "type": "actions",
-                "elements": [
-                    {
-                        "type": "button",
-                        "text": {"type": "plain_text", "text": "View Sessions", "emoji": True},
-                        "url": f"{frontend_url}/sessions",
-                        "style": "primary",
-                    },
-                    {
-                        "type": "button",
-                        "text": {"type": "plain_text", "text": "View Alerts", "emoji": True},
-                        "url": f"{frontend_url}/alerts",
-                    },
-                ]
-            },
-            {
-                "type": "context",
-                "elements": [
-                    {"type": "mrkdwn", "text": f"Sent by *Dottle* · <{frontend_url}|Open Dashboard>"}
-                ]
-            },
-        ]
-    }
+    blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": f"{metric_emoji} {rule_name}",
+                "emoji": True,
+            }
+        },
+        {
+            "type": "section",
+            "fields": [
+                {"type": "mrkdwn", "text": f"*Metric:*\n{metric_label}"},
+                {"type": "mrkdwn", "text": f"*Current Value:*\n`{value_fmt}`"},
+                {"type": "mrkdwn", "text": f"*Threshold:*\n{op_label} {threshold_fmt}"},
+                {"type": "mrkdwn", "text": f"*Window:*\nLast {window_minutes} min"},
+            ]
+        },
+    ]
+
+    # AI-generated plain-English explanation (shown when enrichment succeeded)
+    if ai_summary:
+        blocks.append({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*💡 What's happening*\n{ai_summary}",
+            }
+        })
+
+    blocks += [
+        {"type": "divider"},
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "View Sessions", "emoji": True},
+                    "url": f"{frontend_url}/sessions",
+                    "style": "primary",
+                },
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "View Alerts", "emoji": True},
+                    "url": f"{frontend_url}/alerts",
+                },
+            ]
+        },
+        {
+            "type": "context",
+            "elements": [
+                {"type": "mrkdwn", "text": f"Sent by *Dottle* · <{frontend_url}|Open Dashboard>"}
+            ]
+        },
+    ]
+
+    payload = {"blocks": blocks}
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.post(webhook_url, json=payload)
@@ -163,6 +177,7 @@ async def dispatch_alert(
     operator: str = "gt",
     threshold: float = 0,
     window_minutes: int = 60,
+    ai_summary: str | None = None,
 ) -> tuple[bool, str | None]:
     """Returns (delivered, error_message)"""
     if channel == "slack":
@@ -175,6 +190,7 @@ async def dispatch_alert(
             threshold=threshold,
             window_minutes=window_minutes,
             frontend_url=settings.frontend_url,
+            ai_summary=ai_summary,
         )
         return ok, None if ok else "Slack POST failed"
 
@@ -182,20 +198,50 @@ async def dispatch_alert(
         metric_label = METRIC_LABELS.get(metric, metric)
         value_fmt = _format_value(metric, metric_value)
         op_label = OPERATOR_LABELS.get(operator, operator)
+
+        ai_block = ""
+        if ai_summary:
+            ai_block = f"""
+          <div style="margin:16px 0;padding:14px 16px;background:#f0f4ff;border-left:3px solid #6366f1;border-radius:4px">
+            <p style="margin:0 0 4px 0;font-weight:600;color:#4338ca">💡 What's happening</p>
+            <p style="margin:0;color:#374151;line-height:1.6">{ai_summary}</p>
+          </div>"""
+
         html = f"""
         <div style="font-family:sans-serif;max-width:600px;margin:auto;padding:24px">
-          <h2 style="color:#e53e3e">🚨 {rule_name}</h2>
-          <table style="border-collapse:collapse;width:100%;margin:16px 0">
-            <tr><td style="padding:8px 0;color:#666">Metric</td><td style="padding:8px 0;font-weight:600">{metric_label}</td></tr>
-            <tr><td style="padding:8px 0;color:#666">Value</td><td style="padding:8px 0;font-family:monospace;background:#f5f5f5;padding:4px 8px;border-radius:4px">{value_fmt}</td></tr>
-            <tr><td style="padding:8px 0;color:#666">Threshold</td><td style="padding:8px 0">{op_label} {threshold}</td></tr>
-            <tr><td style="padding:8px 0;color:#666">Window</td><td style="padding:8px 0">Last {window_minutes} minutes</td></tr>
+          <h2 style="color:#e53e3e;margin-bottom:4px">🚨 {rule_name}</h2>
+          <p style="color:#666;margin-top:0">Alert triggered by Dottle</p>
+          <table style="border-collapse:collapse;width:100%;margin:16px 0;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+            <tr style="background:#f9fafb">
+              <td style="padding:10px 14px;color:#6b7280;font-size:13px;width:40%">Metric</td>
+              <td style="padding:10px 14px;font-weight:600">{metric_label}</td>
+            </tr>
+            <tr>
+              <td style="padding:10px 14px;color:#6b7280;font-size:13px">Current Value</td>
+              <td style="padding:10px 14px;font-family:monospace;background:#fef3c7;font-weight:600">{value_fmt}</td>
+            </tr>
+            <tr style="background:#f9fafb">
+              <td style="padding:10px 14px;color:#6b7280;font-size:13px">Threshold</td>
+              <td style="padding:10px 14px">{op_label} {threshold}</td>
+            </tr>
+            <tr>
+              <td style="padding:10px 14px;color:#6b7280;font-size:13px">Window</td>
+              <td style="padding:10px 14px">Last {window_minutes} minutes</td>
+            </tr>
           </table>
+          {ai_block}
           <a href="{settings.frontend_url}/sessions"
-             style="display:inline-block;background:#6366f1;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600">
-            View Dashboard →
+             style="display:inline-block;background:#6366f1;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;margin-top:8px">
+            View Sessions →
           </a>
-          <p style="color:#999;font-size:12px;margin-top:24px">Sent by Dottle · <a href="{settings.frontend_url}">{settings.frontend_url}</a></p>
+          &nbsp;
+          <a href="{settings.frontend_url}/alerts"
+             style="display:inline-block;background:#f3f4f6;color:#374151;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;margin-top:8px;border:1px solid #e5e7eb">
+            View Alert Rules →
+          </a>
+          <p style="color:#9ca3af;font-size:12px;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:16px">
+            Sent by <strong>Dottle</strong> · <a href="{settings.frontend_url}" style="color:#6366f1">{settings.frontend_url}</a>
+          </p>
         </div>
         """
         ok = send_email(destination, f"🚨 {rule_name}", html)

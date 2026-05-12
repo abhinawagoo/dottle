@@ -6,13 +6,15 @@ import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select, func, text
+import sqlalchemy as sa
+from sqlalchemy import select, func, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import AlertRule, AlertEvent
 from app.models.session import AgentSession
 from app.models.tool_call import ToolCall
 from app.services.notifier import dispatch_alert
+from app.services.alert_enricher import enrich_alert
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +26,7 @@ OPERATOR_FNS = {
     "eq":  lambda v, t: v == t,
 }
 
-COOLDOWN_MINUTES = 30  # don't re-fire the same rule within this window
+COOLDOWN_MINUTES = 30  # minimum gap between two firings of the same rule
 
 
 async def evaluate_all_rules(db: AsyncSession) -> None:
@@ -43,32 +45,51 @@ async def evaluate_all_rules(db: AsyncSession) -> None:
 
 async def evaluate_rule(rule: AlertRule, db: AsyncSession) -> None:
     now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(minutes=COOLDOWN_MINUTES)
 
-    # Cooldown check
-    if rule.last_fired_at:
-        elapsed = (now - rule.last_fired_at).total_seconds() / 60
-        if elapsed < COOLDOWN_MINUTES:
-            return
+    # Fast path: skip if still within cooldown (avoids metric query cost)
+    if rule.last_fired_at and rule.last_fired_at > cutoff:
+        return
 
+    # Compute the metric value
     window_start = now - timedelta(minutes=rule.window_minutes)
     metric_value = await _compute_metric(rule.metric, rule.project_id, window_start, db)
-
     if metric_value is None:
         return
 
     op_fn = OPERATOR_FNS.get(rule.operator)
-    if op_fn is None:
+    if op_fn is None or not op_fn(metric_value, float(rule.threshold)):
         return
 
-    if op_fn(metric_value, float(rule.threshold)):
-        await _fire_alert(rule, metric_value, db)
+    # Threshold crossed — atomically claim this firing slot.
+    # Uses UPDATE ... WHERE last_fired_at < cutoff RETURNING id so that
+    # concurrent worker instances (multiple Railway dynos) can't double-fire.
+    claim = await db.execute(
+        sa_update(AlertRule)
+        .where(
+            AlertRule.id == rule.id,
+            sa.or_(
+                AlertRule.last_fired_at.is_(None),
+                AlertRule.last_fired_at < cutoff,
+            ),
+        )
+        .values(last_fired_at=now)
+        .returning(AlertRule.id)
+    )
+    if not claim.fetchone():
+        # Another instance already claimed this firing window
+        return
+
+    await db.commit()  # Commit the timestamp claim before doing any I/O
+
+    await _fire_alert(rule, metric_value, now, db)
 
 
 async def _compute_metric(
     metric: str,
     project_id: uuid.UUID,
     window_start: datetime,
-    db: AsyncSession
+    db: AsyncSession,
 ) -> float | None:
     if metric == "loop_detected":
         result = await db.execute(
@@ -148,9 +169,14 @@ async def _compute_metric(
     return None
 
 
-async def _fire_alert(rule: AlertRule, metric_value: float, db: AsyncSession) -> None:
+async def _fire_alert(
+    rule: AlertRule,
+    metric_value: float,
+    fired_at: datetime,
+    db: AsyncSession,
+) -> None:
     from app.models.project import Project
-    now = datetime.now(timezone.utc)
+
     message = (
         f"Alert *{rule.name}* fired.\n"
         f"Metric `{rule.metric}` is `{metric_value}` "
@@ -158,17 +184,37 @@ async def _fire_alert(rule: AlertRule, metric_value: float, db: AsyncSession) ->
         f"in the last {rule.window_minutes} minutes."
     )
 
-    # Resolve __project_slack__ sentinel → actual webhook URL
+    # Resolve __project_slack__ sentinel → actual webhook URL + fetch org_id
     destination = rule.destination
-    if rule.channel == "slack" and destination == "__project_slack__":
-        proj_result = await db.execute(select(Project).where(Project.id == rule.project_id))
-        project = proj_result.scalar_one_or_none()
-        if project and project.slack_webhook_url:
-            destination = project.slack_webhook_url
-        else:
-            logger.warning(f"Alert {rule.id} uses __project_slack__ but no webhook is configured")
-            destination = ""
+    org_id = None
 
+    proj_result = await db.execute(select(Project).where(Project.id == rule.project_id))
+    project = proj_result.scalar_one_or_none()
+
+    if project:
+        org_id = project.org_id
+        if rule.channel == "slack" and destination == "__project_slack__":
+            if project.slack_webhook_url:
+                destination = project.slack_webhook_url
+            else:
+                logger.warning(f"Alert {rule.id} uses __project_slack__ but no webhook configured")
+                destination = ""
+
+    # Generate AI-enriched summary using the org's configured LLM provider
+    ai_summary: str | None = None
+    if org_id:
+        ai_summary = await enrich_alert(
+            org_id=org_id,
+            rule_name=rule.name,
+            metric=rule.metric,
+            metric_value=metric_value,
+            operator=rule.operator,
+            threshold=float(rule.threshold),
+            window_minutes=rule.window_minutes,
+            db=db,
+        )
+
+    # Dispatch primary notification
     delivered, error = await dispatch_alert(
         channel=rule.channel,
         destination=destination,
@@ -179,36 +225,33 @@ async def _fire_alert(rule: AlertRule, metric_value: float, db: AsyncSession) ->
         operator=rule.operator,
         threshold=float(rule.threshold),
         window_minutes=rule.window_minutes,
-    ) if destination else (False, "No webhook configured")
+        ai_summary=ai_summary,
+    ) if destination else (False, "No destination configured")
 
-    # Also notify via project-level Slack webhook for non-Slack rules (if configured)
-    if rule.channel != "slack" and destination != "__project_slack__":
-        proj_result = await db.execute(select(Project).where(Project.id == rule.project_id))
-        project = proj_result.scalar_one_or_none()
-        if project and project.slack_webhook_url:
-            await dispatch_alert(
-                channel="slack",
-                destination=project.slack_webhook_url,
-                rule_name=rule.name,
-                message=message,
-                metric_value=metric_value,
-                metric=rule.metric,
-                operator=rule.operator,
-                threshold=float(rule.threshold),
-                window_minutes=rule.window_minutes,
-            )
+    # Mirror to project Slack for non-Slack rules
+    if rule.channel != "slack" and project and project.slack_webhook_url:
+        await dispatch_alert(
+            channel="slack",
+            destination=project.slack_webhook_url,
+            rule_name=rule.name,
+            message=message,
+            metric_value=metric_value,
+            metric=rule.metric,
+            operator=rule.operator,
+            threshold=float(rule.threshold),
+            window_minutes=rule.window_minutes,
+            ai_summary=ai_summary,
+        )
 
     event = AlertEvent(
         id=uuid.uuid4(),
         alert_rule_id=rule.id,
         metric_value=metric_value,
-        message=message,
+        message=ai_summary or message,  # store richer message in history
         delivered=delivered,
         delivery_error=error,
     )
     db.add(event)
-
-    rule.last_fired_at = now
     await db.commit()
 
-    logger.info(f"Alert fired: {rule.name} | metric={metric_value} | delivered={delivered}")
+    logger.info(f"Alert fired: {rule.name} | metric={metric_value} | delivered={delivered} | enriched={ai_summary is not None}")
