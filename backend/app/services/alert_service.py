@@ -175,6 +175,10 @@ async def _fire_alert(rule: AlertRule, metric_value: float, db: AsyncSession) ->
         rule_name=rule.name,
         message=message,
         metric_value=metric_value,
+        metric=rule.metric,
+        operator=rule.operator,
+        threshold=float(rule.threshold),
+        window_minutes=rule.window_minutes,
     ) if destination else (False, "No webhook configured")
 
     # Also notify via project-level Slack webhook for non-Slack rules (if configured)
@@ -188,6 +192,10 @@ async def _fire_alert(rule: AlertRule, metric_value: float, db: AsyncSession) ->
                 rule_name=rule.name,
                 message=message,
                 metric_value=metric_value,
+                metric=rule.metric,
+                operator=rule.operator,
+                threshold=float(rule.threshold),
+                window_minutes=rule.window_minutes,
             )
 
     event = AlertEvent(

@@ -72,17 +72,19 @@ async def delete_alert_rule(rule_id: uuid.UUID, db: AsyncSession = Depends(get_d
 @router.get("/events", response_model=list[AlertEventResponse])
 async def list_alert_events(
     project_id: uuid.UUID,
+    rule_id: uuid.UUID | None = None,
     page: int = 1,
     page_size: int = 50,
     db: AsyncSession = Depends(get_db),
 ):
     offset = (page - 1) * page_size
-    result = await db.execute(
+    q = (
         select(AlertEvent)
         .join(AlertRule, AlertEvent.alert_rule_id == AlertRule.id)
         .where(AlertRule.project_id == project_id)
-        .order_by(AlertEvent.fired_at.desc())
-        .offset(offset)
-        .limit(page_size)
     )
+    if rule_id:
+        q = q.where(AlertEvent.alert_rule_id == rule_id)
+    q = q.order_by(AlertEvent.fired_at.desc()).offset(offset).limit(page_size)
+    result = await db.execute(q)
     return result.scalars().all()

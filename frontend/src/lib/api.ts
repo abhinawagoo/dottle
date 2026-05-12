@@ -423,4 +423,7 @@ export const alertsApi = {
 
   listEvents: (projectId: string): Promise<AlertEvent[]> =>
     api.get("/alerts/events", { params: { project_id: projectId } }).then(r => r.data),
+
+  listEventsByRule: (projectId: string, ruleId: string): Promise<AlertEvent[]> =>
+    api.get("/alerts/events", { params: { project_id: projectId, rule_id: ruleId } }).then(r => r.data),
 };
