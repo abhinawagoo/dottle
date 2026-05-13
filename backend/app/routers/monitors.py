@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.semantic_monitor import SemanticMonitor, MonitorEvent
-from app.lib.auth import current_user
+from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/monitors", tags=["monitors"])
 
@@ -74,7 +74,7 @@ class MonitorEventOut(BaseModel):
 async def list_monitors(
     project_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _: Any = Depends(current_user),
+    _: Any = Depends(get_current_user),
 ):
     result = await db.execute(
         select(SemanticMonitor)
@@ -88,7 +88,7 @@ async def list_monitors(
 async def create_monitor(
     body: MonitorCreate,
     db: AsyncSession = Depends(get_db),
-    _: Any = Depends(current_user),
+    _: Any = Depends(get_current_user),
 ):
     monitor = SemanticMonitor(**body.model_dump())
     db.add(monitor)
@@ -102,7 +102,7 @@ async def update_monitor(
     monitor_id: uuid.UUID,
     body: MonitorUpdate,
     db: AsyncSession = Depends(get_db),
-    _: Any = Depends(current_user),
+    _: Any = Depends(get_current_user),
 ):
     result = await db.execute(select(SemanticMonitor).where(SemanticMonitor.id == monitor_id))
     monitor = result.scalar_one_or_none()
@@ -121,7 +121,7 @@ async def update_monitor(
 async def delete_monitor(
     monitor_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _: Any = Depends(current_user),
+    _: Any = Depends(get_current_user),
 ):
     result = await db.execute(select(SemanticMonitor).where(SemanticMonitor.id == monitor_id))
     monitor = result.scalar_one_or_none()
@@ -136,7 +136,7 @@ async def list_events(
     monitor_id: uuid.UUID,
     limit: int = 20,
     db: AsyncSession = Depends(get_db),
-    _: Any = Depends(current_user),
+    _: Any = Depends(get_current_user),
 ):
     result = await db.execute(
         select(MonitorEvent)
