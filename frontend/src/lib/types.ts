@@ -47,6 +47,7 @@ export interface SemanticMonitor {
   threshold_pct: number;
   window_minutes: number;
   min_sessions: number;
+  model_provider: string | null;
   enabled: boolean;
   last_fired_at: string | null;
   created_at: string;

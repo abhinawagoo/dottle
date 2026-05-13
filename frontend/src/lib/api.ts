@@ -441,10 +441,10 @@ export const monitorsApi = {
   list: (projectId: string) =>
     api.get("/monitors", { params: { project_id: projectId } }).then(r => r.data),
 
-  create: (data: { project_id: string; name: string; description?: string; pattern_prompt: string; threshold_pct?: number; window_minutes?: number; min_sessions?: number }) =>
+  create: (data: { project_id: string; name: string; description?: string; pattern_prompt: string; threshold_pct?: number; window_minutes?: number; min_sessions?: number; model_provider?: string | null }) =>
     api.post("/monitors", data).then(r => r.data),
 
-  update: (id: string, data: Partial<{ name: string; description: string; pattern_prompt: string; threshold_pct: number; window_minutes: number; min_sessions: number; enabled: boolean }>) =>
+  update: (id: string, data: Partial<{ name: string; description: string; pattern_prompt: string; threshold_pct: number; window_minutes: number; min_sessions: number; model_provider: string | null; enabled: boolean }>) =>
     api.patch(`/monitors/${id}`, data).then(r => r.data),
 
   delete: (id: string) =>

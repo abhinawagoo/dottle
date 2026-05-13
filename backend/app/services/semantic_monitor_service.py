@@ -175,14 +175,20 @@ async def evaluate_monitor(monitor: SemanticMonitor, db: AsyncSession) -> None:
     if not providers:
         return
 
-    # Pick the best available provider
+    # Pick the provider: use monitor's preferred provider if set and available,
+    # otherwise fall back to the priority chain
     api_key = None
     provider_name = None
-    for p in PROVIDER_PRIORITY:
-        if providers.get(p):
-            api_key = providers[p]
-            provider_name = p
-            break
+    preferred = getattr(monitor, "model_provider", None)
+    if preferred and providers.get(preferred):
+        api_key = providers[preferred]
+        provider_name = preferred
+    else:
+        for p in PROVIDER_PRIORITY:
+            if providers.get(p):
+                api_key = providers[p]
+                provider_name = p
+                break
     if not api_key:
         return
 

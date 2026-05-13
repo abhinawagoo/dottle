@@ -27,6 +27,7 @@ class MonitorCreate(BaseModel):
     threshold_pct: float = 20.0
     window_minutes: int = 60
     min_sessions: int = 5
+    model_provider: str | None = None   # None = auto-pick from org providers
 
 
 class MonitorUpdate(BaseModel):
@@ -36,6 +37,7 @@ class MonitorUpdate(BaseModel):
     threshold_pct: float | None = None
     window_minutes: int | None = None
     min_sessions: int | None = None
+    model_provider: str | None = None
     enabled: bool | None = None
 
 
@@ -48,6 +50,7 @@ class MonitorOut(BaseModel):
     threshold_pct: float
     window_minutes: int
     min_sessions: int
+    model_provider: str | None
     enabled: bool
     last_fired_at: datetime | None
     created_at: datetime

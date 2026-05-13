@@ -25,6 +25,8 @@ class SemanticMonitor(Base):
     threshold_pct:  Mapped[float]    = mapped_column(Float, default=20.0)
     window_minutes: Mapped[int]      = mapped_column(Integer, default=60)
     min_sessions:   Mapped[int]      = mapped_column(Integer, default=5)   # need at least N sessions before firing
+    # Preferred LLM provider for evaluation (None = auto-pick from org providers)
+    model_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
     enabled:        Mapped[bool]     = mapped_column(Boolean, default=True)
     last_fired_at:  Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at:     Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
