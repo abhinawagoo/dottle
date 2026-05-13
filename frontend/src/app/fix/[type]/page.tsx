@@ -222,7 +222,7 @@ export default function FixPage({ params }: Props) {
         <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
           <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
           <div>
-            <p className="text-sm font-medium text-amber-300">GitHub not connected</p>
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-300">GitHub not connected</p>
             <p className="text-xs text-ink-muted mt-0.5">
               Connect your GitHub repository in{" "}
               <Link href="/settings" className="text-brand-400 hover:underline">Settings → Integrations</Link>{" "}
@@ -315,7 +315,7 @@ export default function FixPage({ params }: Props) {
 
           {/* No patches */}
           {job.status === "ready" && (!job.patches || job.patches.length === 0) && (
-            <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 text-sm text-amber-300">
+            <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 text-sm text-amber-700 dark:text-amber-300">
               The AI analyzed the issue but could not generate specific patches for the provided files.
               Review the root cause above and apply the fix manually.
             </div>

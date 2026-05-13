@@ -408,7 +408,7 @@ function CreateAlertModal({ onClose, projectId, slackConfig }: {
                 <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-500/5 border border-amber-500/20">
                   <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-xs font-medium text-amber-300">No Slack workspace connected</p>
+                    <p className="text-xs font-medium text-amber-700 dark:text-amber-300">No Slack workspace connected</p>
                     <p className="text-[11px] text-ink-dim mt-0.5">
                       <a href="/settings?section=slack" className="text-brand-400 hover:underline">Connect Slack in Settings</a> to enable Slack alerts.
                     </p>

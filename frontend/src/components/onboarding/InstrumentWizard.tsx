@@ -493,7 +493,7 @@ export default function InstrumentWizard({ apiKey, onClose }: Props) {
               {genError ? (
                 <div className="flex items-start gap-3 p-3.5 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
                   <span className="text-yellow-400 shrink-0 mt-0.5 text-sm">⚠</span>
-                  <p className="text-[12px] text-yellow-300">{genError}</p>
+                  <p className="text-[12px] text-yellow-700 dark:text-yellow-300">{genError}</p>
                 </div>
               ) : (
                 <div className="flex items-start gap-3 p-3.5 rounded-xl bg-green-500/5 border border-green-500/20">

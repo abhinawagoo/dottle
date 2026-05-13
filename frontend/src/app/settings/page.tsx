@@ -124,7 +124,7 @@ function AIProvidersSection() {
         <div className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3 text-xs">
           <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <div>
-            <p className="font-semibold text-amber-300">Could not load saved keys from the database</p>
+            <p className="font-semibold text-amber-700 dark:text-amber-300">Could not load saved keys from the database</p>
             <p className="text-amber-400/80 mt-0.5">
               Run <code className="font-mono bg-amber-500/10 px-1 rounded">alembic upgrade head</code> in the{" "}
               <code className="font-mono bg-amber-500/10 px-1 rounded">backend/</code> directory, then refresh.

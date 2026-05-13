@@ -181,6 +181,16 @@ export default function DashboardPage() {
           <p className="text-xs text-ink-muted mt-0.5">Last 7 days · {selectedProject?.name}</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Tool failure rate badge — shown inline when elevated */}
+          {summary && summary.tool_failure_rate_pct > 0 && (
+            <Link
+              href="/metrics"
+              className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-1.5 hover:bg-amber-500/15 transition-colors"
+            >
+              <Wrench className="w-3.5 h-3.5" />
+              Tool failure rate {summary.tool_failure_rate_pct.toFixed(1)}% · View breakdown →
+            </Link>
+          )}
           {criticalCount > 0 && (
             <Link href="/issues" className="flex items-center gap-1.5 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-1.5 hover:bg-red-500/15 transition-colors">
               <ShieldAlert className="w-3.5 h-3.5" />
@@ -442,16 +452,6 @@ export default function DashboardPage() {
         )}
       </Card>
 
-      {/* Tool failure summary (if any) */}
-      {summary && summary.tool_failure_rate_pct > 0 && (
-        <div className="flex items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
-          <Wrench className="w-4 h-4 text-amber-400 shrink-0" />
-          <p className="text-xs text-amber-300">
-            Tool failure rate is <span className="font-bold">{summary.tool_failure_rate_pct.toFixed(1)}%</span> over the last 7 days.{" "}
-            <Link href="/metrics" className="underline underline-offset-2 hover:text-amber-200">View breakdown →</Link>
-          </p>
-        </div>
-      )}
 
     </div>
   );
