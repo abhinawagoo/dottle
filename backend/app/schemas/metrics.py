@@ -78,6 +78,17 @@ class RegressionReport(BaseModel):
 
 # ── Issues Board ──────────────────────────────────────────────────────────────
 
+class QualityBucket(BaseModel):
+    bucket: str          # ISO date string "2026-04-12"
+    avg_quality: float   # 0.0–1.0
+    session_count: int   # number of scored sessions in that bucket
+
+
+class QualityOverTimeResponse(BaseModel):
+    granularity: str
+    series: list[QualityBucket]
+
+
 class IssueGroup(BaseModel):
     issue_type: str
     severity: str

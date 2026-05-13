@@ -14,6 +14,7 @@ from app.schemas.metrics import (
     ToolFailureRatesResponse, ToolFailureStat,
     LatencyDistributionResponse, LatencyPercentiles,
     RegressionReport, VersionSnapshot, RegressionDelta,
+    QualityOverTimeResponse, QualityBucket,
 )
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
@@ -159,6 +160,56 @@ async def get_cost_over_time(
                 cost_usd=float(row.cost_usd),
                 session_count=row.session_count,
                 token_count=row.token_count,
+            )
+            for row in rows
+        ],
+    )
+
+
+@router.get("/quality-over-time", response_model=QualityOverTimeResponse)
+async def get_quality_over_time(
+    project_id: uuid.UUID,
+    from_: datetime | None = Query(None, alias="from"),
+    to: datetime | None = None,
+    granularity: str = "day",
+    db: AsyncSession = Depends(get_db),
+):
+    from_ = from_ or _default_from()
+    to = to or datetime.now(timezone.utc)
+
+    trunc_map = {"hour": "hour", "day": "day", "week": "week"}
+    trunc = trunc_map.get(granularity, "day")
+
+    result = await db.execute(
+        text("""
+            SELECT
+                date_trunc(:trunc, s.created_at) AS bucket,
+                AVG(s.value) AS avg_quality,
+                COUNT(s.id) AS session_count
+            FROM scores s
+            WHERE s.project_id = :project_id
+              AND s.name = 'auto_quality'
+              AND s.created_at >= :from_
+              AND s.created_at <= :to_
+            GROUP BY bucket
+            ORDER BY bucket ASC
+        """),
+        {
+            "trunc": trunc,
+            "project_id": str(project_id),
+            "from_": from_,
+            "to_": to,
+        },
+    )
+    rows = result.fetchall()
+
+    return QualityOverTimeResponse(
+        granularity=granularity,
+        series=[
+            QualityBucket(
+                bucket=row.bucket.isoformat(),
+                avg_quality=round(float(row.avg_quality), 3),
+                session_count=int(row.session_count),
             )
             for row in rows
         ],

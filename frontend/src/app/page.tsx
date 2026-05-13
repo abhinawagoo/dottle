@@ -142,6 +142,12 @@ export default function DashboardPage() {
     enabled: !!PROJECT_ID,
   });
 
+  const { data: qualityTrend } = useQuery({
+    queryKey: ["quality-over-time", PROJECT_ID, "day"],
+    queryFn: () => metricsApi.qualityOverTime(PROJECT_ID, "day"),
+    enabled: !!PROJECT_ID,
+  });
+
   // Top issues (critical/high first, max 5)
   const topIssues = (issuesData?.groups ?? [])
     .sort((a, b) => {
@@ -388,6 +394,77 @@ export default function DashboardPage() {
           )}
         </Card>
       </div>
+
+      {/* ── Quality trend chart ── */}
+      {qualityTrend && qualityTrend.series.length > 0 && (
+        <Card title="Quality Score Trend" subtitle="Avg auto-quality per day · last 7 days">
+          <ReactECharts
+            option={{
+              backgroundColor: "transparent",
+              tooltip: {
+                trigger: "axis",
+                backgroundColor: "#18181b",
+                borderColor: "#27272a",
+                textStyle: { color: "#fafafa", fontSize: 12 },
+                formatter: (params: { name: string; value: number }[]) => {
+                  const p = params[0];
+                  return `${p.name}<br/>Quality: <b>${Math.round(p.value * 100)}/100</b>`;
+                },
+              },
+              xAxis: {
+                type: "category",
+                data: qualityTrend.series.map((b) => b.bucket.slice(5, 10)),
+                axisLabel: { color: "#52525b", fontSize: 10 },
+                axisLine: { lineStyle: { color: "#27272a" } },
+                splitLine: { show: false },
+              },
+              yAxis: {
+                type: "value",
+                min: 0,
+                max: 1,
+                axisLabel: {
+                  color: "#52525b",
+                  fontSize: 10,
+                  formatter: (v: number) => `${Math.round(v * 100)}`,
+                },
+                splitLine: { lineStyle: { color: "#1f1f23" } },
+              },
+              series: [
+                {
+                  name: "Quality",
+                  type: "line",
+                  data: qualityTrend.series.map((b) => b.avg_quality),
+                  smooth: true,
+                  symbol: "circle",
+                  symbolSize: 5,
+                  lineStyle: { color: "#22c55e", width: 2 },
+                  itemStyle: { color: "#22c55e" },
+                  areaStyle: {
+                    color: {
+                      type: "linear",
+                      x: 0, y: 0, x2: 0, y2: 1,
+                      colorStops: [
+                        { offset: 0, color: "rgba(34,197,94,0.25)" },
+                        { offset: 1, color: "rgba(34,197,94,0.02)" },
+                      ],
+                    },
+                  },
+                  markLine: {
+                    silent: true,
+                    symbol: "none",
+                    data: [
+                      { yAxis: 0.8, lineStyle: { color: "#22c55e", type: "dashed", opacity: 0.4 }, label: { formatter: "Good (80)", color: "#22c55e", fontSize: 9 } },
+                      { yAxis: 0.5, lineStyle: { color: "#f59e0b", type: "dashed", opacity: 0.4 }, label: { formatter: "Fair (50)", color: "#f59e0b", fontSize: 9 } },
+                    ],
+                  },
+                },
+              ],
+              grid: { left: 40, right: 20, bottom: 28, top: 30 },
+            }}
+            style={{ height: 180 }}
+          />
+        </Card>
+      )}
 
       {/* ── Agent health grid ── */}
       {agents.length > 0 && (

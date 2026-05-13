@@ -133,6 +133,17 @@ export interface CostOverTimeResponse {
   series: CostBucket[];
 }
 
+export interface QualityBucket {
+  bucket: string;
+  avg_quality: number;
+  session_count: number;
+}
+
+export interface QualityOverTimeResponse {
+  granularity: string;
+  series: QualityBucket[];
+}
+
 export interface ToolFailureStat {
   tool_name: string;
   total: number;
