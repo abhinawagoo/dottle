@@ -2,7 +2,7 @@ import axios from "axios";
 import type {
   Project, Session, SessionDetail, SessionListResponse,
   MetricsSummary, CostOverTimeResponse, ToolFailureRatesResponse,
-  QualityOverTimeResponse,
+  QualityOverTimeResponse, TokenStats,
   AlertRule, AlertEvent,
   Score, PromptVersion, EvalConfig, EvalResult,
   DatasetSummary, DatasetDetail, PlaygroundResult,
@@ -289,6 +289,9 @@ export const metricsApi = {
 
   qualityOverTime: (projectId: string, granularity = "day", from?: string, to?: string): Promise<QualityOverTimeResponse> =>
     api.get("/metrics/quality-over-time", { params: { project_id: projectId, granularity, from, to } }).then(r => r.data),
+
+  tokenStats: (projectId: string, from?: string, to?: string): Promise<TokenStats> =>
+    api.get("/metrics/token-stats", { params: { project_id: projectId, from, to } }).then(r => r.data),
 
   toolFailureRates: (projectId: string, from?: string, to?: string): Promise<ToolFailureRatesResponse> =>
     api.get("/metrics/tool-failure-rates", { params: { project_id: projectId, from, to } }).then(r => r.data),

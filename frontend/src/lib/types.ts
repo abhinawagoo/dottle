@@ -133,6 +133,24 @@ export interface CostOverTimeResponse {
   series: CostBucket[];
 }
 
+export interface AgentTokenStat {
+  agent_name: string;
+  avg_input_tokens: number;
+  avg_output_tokens: number;
+  avg_total_tokens: number;
+  session_count: number;
+}
+
+export interface TokenStats {
+  avg_input_tokens: number;
+  avg_output_tokens: number;
+  avg_total_tokens: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  input_ratio_pct: number;
+  by_agent: AgentTokenStat[];
+}
+
 export interface QualityBucket {
   bucket: string;
   avg_quality: number;

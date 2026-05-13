@@ -4,9 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { metricsApi } from "@/lib/api";
 import { Card, EmptyState } from "@/components/ui/Card";
 import ReactECharts from "echarts-for-react";
-import { BarChart2, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { BarChart2, TrendingDown, TrendingUp, Minus, Cpu } from "lucide-react";
 import { useProject } from "@/lib/project-context";
-import { RegressionReport } from "@/lib/types";
+import { RegressionReport, TokenStats } from "@/lib/types";
 
 const CHART_THEME = {
   backgroundColor: "transparent",
@@ -51,6 +51,12 @@ export default function MetricsPage() {
   const { data: latencyData } = useQuery({
     queryKey: ["latency", PROJECT_ID],
     queryFn: () => metricsApi.latency(PROJECT_ID),
+    enabled: !!PROJECT_ID,
+  });
+
+  const { data: tokenData } = useQuery<TokenStats>({
+    queryKey: ["token-stats", PROJECT_ID],
+    queryFn: () => metricsApi.tokenStats(PROJECT_ID),
     enabled: !!PROJECT_ID,
   });
 
@@ -278,6 +284,89 @@ export default function MetricsPage() {
           </table>
         </Card>
       ) : null}
+
+      {/* ── Token Efficiency ──────────────────────────────────────────────────── */}
+      {tokenData && tokenData.avg_total_tokens > 0 && (
+        <Card title="Token Efficiency" subtitle="Input vs output ratio · last 7 days">
+          {/* Summary stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+            {[
+              { label: "Avg Input Tokens",  value: Math.round(tokenData.avg_input_tokens).toLocaleString() },
+              { label: "Avg Output Tokens", value: Math.round(tokenData.avg_output_tokens).toLocaleString() },
+              { label: "Avg Total Tokens",  value: Math.round(tokenData.avg_total_tokens).toLocaleString() },
+              {
+                label: "Input Ratio",
+                value: `${tokenData.input_ratio_pct.toFixed(1)}%`,
+                note: tokenData.input_ratio_pct > 80 ? "high — consider pruning context" : tokenData.input_ratio_pct > 65 ? "moderate" : "efficient",
+                noteColor: tokenData.input_ratio_pct > 80 ? "text-amber-600 dark:text-amber-400" : "text-green-600 dark:text-green-400",
+              },
+            ].map(({ label, value, note, noteColor }) => (
+              <div key={label} className="bg-dark-raised/40 border border-dark-border rounded-xl p-3">
+                <p className="text-[10px] text-ink-dim mb-1">{label}</p>
+                <p className="text-lg font-bold font-mono text-ink-primary tabular-nums">{value}</p>
+                {note && <p className={`text-[10px] mt-0.5 ${noteColor}`}>{note}</p>}
+              </div>
+            ))}
+          </div>
+
+          {/* Per-agent bar chart: input vs output */}
+          {tokenData.by_agent.length > 0 && (
+            <ReactECharts
+              option={{
+                backgroundColor: "transparent",
+                tooltip: {
+                  trigger: "axis",
+                  backgroundColor: "#18181b",
+                  borderColor: "#27272a",
+                  textStyle: { color: "#fafafa", fontSize: 12 },
+                  axisPointer: { type: "shadow" },
+                },
+                legend: {
+                  data: ["Avg Input Tokens", "Avg Output Tokens"],
+                  textStyle: { color: "#71717a", fontSize: 11 },
+                  right: 0,
+                  top: 0,
+                },
+                xAxis: {
+                  type: "value",
+                  axisLabel: { color: "#52525b", fontSize: 10 },
+                  splitLine: { lineStyle: { color: "#1f1f23" } },
+                },
+                yAxis: {
+                  type: "category",
+                  data: tokenData.by_agent.map((a) => a.agent_name),
+                  axisLabel: { color: "#a1a1aa", fontSize: 11, width: 120, overflow: "truncate" },
+                  axisLine: { lineStyle: { color: "#27272a" } },
+                },
+                series: [
+                  {
+                    name: "Avg Input Tokens",
+                    type: "bar",
+                    stack: "tokens",
+                    data: tokenData.by_agent.map((a) => Math.round(a.avg_input_tokens)),
+                    itemStyle: { color: "#3a5c9a", borderRadius: [0, 0, 0, 0] },
+                  },
+                  {
+                    name: "Avg Output Tokens",
+                    type: "bar",
+                    stack: "tokens",
+                    data: tokenData.by_agent.map((a) => Math.round(a.avg_output_tokens)),
+                    itemStyle: { color: "#22c55e", borderRadius: [0, 3, 3, 0] },
+                  },
+                ],
+                grid: { left: 130, right: 20, bottom: 25, top: 35 },
+              }}
+              style={{ height: Math.max(120, tokenData.by_agent.length * 36 + 50) }}
+            />
+          )}
+
+          {/* Interpretation hint */}
+          <p className="text-[10px] text-ink-dim mt-3 leading-relaxed flex items-start gap-1.5">
+            <Cpu className="w-3 h-3 mt-0.5 shrink-0" />
+            A high input ratio ({">"} 80%) means agents are sending much larger prompts than the responses they generate — consider truncating conversation history or summarizing long contexts to reduce cost.
+          </p>
+        </Card>
+      )}
 
       {/* ── Regression Detection ─────────────────────────────────────────────── */}
       <Card

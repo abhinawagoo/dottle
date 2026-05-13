@@ -76,6 +76,26 @@ class RegressionReport(BaseModel):
     verdict: str                # "improved" | "regressed" | "neutral"
 
 
+# ── Token Efficiency ─────────────────────────────────────────────────────────
+
+class AgentTokenStat(BaseModel):
+    agent_name: str
+    avg_input_tokens: float
+    avg_output_tokens: float
+    avg_total_tokens: float
+    session_count: int
+
+
+class TokenStats(BaseModel):
+    avg_input_tokens: float
+    avg_output_tokens: float
+    avg_total_tokens: float
+    total_input_tokens: int
+    total_output_tokens: int
+    input_ratio_pct: float      # input tokens as % of total (high = potentially wasteful)
+    by_agent: list[AgentTokenStat]
+
+
 # ── Issues Board ──────────────────────────────────────────────────────────────
 
 class QualityBucket(BaseModel):

@@ -15,6 +15,7 @@ from app.schemas.metrics import (
     LatencyDistributionResponse, LatencyPercentiles,
     RegressionReport, VersionSnapshot, RegressionDelta,
     QualityOverTimeResponse, QualityBucket,
+    TokenStats, AgentTokenStat,
 )
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
@@ -212,6 +213,78 @@ async def get_quality_over_time(
                 session_count=int(row.session_count),
             )
             for row in rows
+        ],
+    )
+
+
+@router.get("/token-stats", response_model=TokenStats)
+async def get_token_stats(
+    project_id: uuid.UUID,
+    from_: datetime | None = Query(None, alias="from"),
+    to: datetime | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    from_ = from_ or _default_from()
+    to = to or datetime.now(timezone.utc)
+
+    conditions = [
+        AgentSession.project_id == project_id,
+        AgentSession.started_at >= from_,
+        AgentSession.started_at <= to,
+        AgentSession.total_tokens.isnot(None),
+    ]
+
+    # Overall aggregate
+    overall = await db.execute(
+        select(
+            func.coalesce(func.avg(AgentSession.input_tokens), 0).label("avg_in"),
+            func.coalesce(func.avg(AgentSession.output_tokens), 0).label("avg_out"),
+            func.coalesce(func.avg(AgentSession.total_tokens), 0).label("avg_total"),
+            func.coalesce(func.sum(AgentSession.input_tokens), 0).label("sum_in"),
+            func.coalesce(func.sum(AgentSession.output_tokens), 0).label("sum_out"),
+        ).where(and_(*conditions))
+    )
+    ov = overall.one()
+
+    avg_in    = float(ov.avg_in or 0)
+    avg_out   = float(ov.avg_out or 0)
+    avg_total = float(ov.avg_total or 0)
+    sum_in    = int(ov.sum_in or 0)
+    sum_out   = int(ov.sum_out or 0)
+    input_ratio = round(sum_in / (sum_in + sum_out) * 100, 1) if (sum_in + sum_out) > 0 else 0.0
+
+    # Per-agent breakdown
+    by_agent_result = await db.execute(
+        select(
+            AgentSession.agent_name,
+            func.coalesce(func.avg(AgentSession.input_tokens), 0).label("avg_in"),
+            func.coalesce(func.avg(AgentSession.output_tokens), 0).label("avg_out"),
+            func.coalesce(func.avg(AgentSession.total_tokens), 0).label("avg_total"),
+            func.count(AgentSession.id).label("cnt"),
+        )
+        .where(and_(*conditions))
+        .group_by(AgentSession.agent_name)
+        .order_by(func.avg(AgentSession.total_tokens).desc())
+        .limit(10)
+    )
+    by_agent_rows = by_agent_result.fetchall()
+
+    return TokenStats(
+        avg_input_tokens=round(avg_in, 1),
+        avg_output_tokens=round(avg_out, 1),
+        avg_total_tokens=round(avg_total, 1),
+        total_input_tokens=sum_in,
+        total_output_tokens=sum_out,
+        input_ratio_pct=input_ratio,
+        by_agent=[
+            AgentTokenStat(
+                agent_name=r.agent_name,
+                avg_input_tokens=round(float(r.avg_in or 0), 1),
+                avg_output_tokens=round(float(r.avg_out or 0), 1),
+                avg_total_tokens=round(float(r.avg_total or 0), 1),
+                session_count=r.cnt,
+            )
+            for r in by_agent_rows
         ],
     )
 
