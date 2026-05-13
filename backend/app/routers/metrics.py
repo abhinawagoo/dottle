@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.session import AgentSession
 from app.models.tool_call import ToolCall
+from app.models.score import Score
 from app.schemas.metrics import (
     MetricsSummary, CostOverTimeResponse, CostBucket,
     ToolFailureRatesResponse, ToolFailureStat,
@@ -81,6 +82,22 @@ async def get_summary(
     tc_row = tc_result.one()
     tool_failure_rate = round(tc_row.errors / tc_row.total * 100, 2) if tc_row.total else 0.0
 
+    # Avg auto_quality score in window
+    quality_result = await db.execute(
+        select(
+            func.avg(Score.value).label("avg_quality"),
+            func.count(Score.id).label("scored_count"),
+        ).where(
+            Score.project_id == project_id,
+            Score.name == "auto_quality",
+            Score.created_at >= from_,
+            Score.created_at <= to,
+        )
+    )
+    quality_row = quality_result.one()
+    avg_quality = float(quality_row.avg_quality) if quality_row.avg_quality is not None else None
+    scored_count = int(quality_row.scored_count or 0)
+
     total = row.total or 0
     return MetricsSummary(
         total_sessions=total,
@@ -92,6 +109,8 @@ async def get_summary(
         tool_failure_rate_pct=tool_failure_rate,
         error_rate_pct=round(row.failed_count / total * 100, 2) if total else 0.0,
         sessions_by_status=sessions_by_status,
+        avg_quality_score=round(avg_quality, 3) if avg_quality is not None else None,
+        scored_session_count=scored_count,
     )
 
 

@@ -13,7 +13,7 @@ import {
   DollarSign, Clock, RefreshCw, AlertTriangle, Wrench,
   Layers, Settings, ArrowRight, Bot, ShieldAlert,
   TrendingUp, XCircle, AlertCircle, Info, Bell, CheckCircle2,
-  ChevronRight,
+  ChevronRight, Star,
 } from "lucide-react";
 import { useProject } from "@/lib/project-context";
 
@@ -206,7 +206,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Stats row ── */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
         <StatCard
           label="Total Sessions"
           value={sumLoading ? "—" : (summary?.total_sessions ?? 0).toLocaleString()}
@@ -231,6 +231,27 @@ export default function DashboardPage() {
           sub={`Loop rate: ${summary?.loop_rate_pct.toFixed(1) ?? "—"}%`}
           color={summary && summary.error_rate_pct > 10 ? "red" : summary && summary.loop_rate_pct > 5 ? "orange" : "default"}
           icon={<AlertTriangle />}
+        />
+        <StatCard
+          label="Avg Quality"
+          value={
+            sumLoading ? "—"
+            : summary?.avg_quality_score != null
+              ? `${Math.round(summary.avg_quality_score * 100)}/100`
+              : "—"
+          }
+          sub={
+            summary?.scored_session_count
+              ? `${summary.scored_session_count} sessions scored`
+              : "enable AI provider to score"
+          }
+          color={
+            summary?.avg_quality_score == null ? "default"
+            : summary.avg_quality_score >= 0.8 ? "default"
+            : summary.avg_quality_score >= 0.5 ? "orange"
+            : "red"
+          }
+          icon={<Star />}
         />
       </div>
 

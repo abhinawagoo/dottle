@@ -11,6 +11,8 @@ class MetricsSummary(BaseModel):
     tool_failure_rate_pct: float
     error_rate_pct: float
     sessions_by_status: dict[str, int]
+    avg_quality_score: float | None = None   # 0.0–1.0, None if no auto-scoring yet
+    scored_session_count: int = 0            # how many sessions have been scored
 
 
 class CostBucket(BaseModel):

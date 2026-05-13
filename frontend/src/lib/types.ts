@@ -117,6 +117,8 @@ export interface MetricsSummary {
   tool_failure_rate_pct: number;
   error_rate_pct: number;
   sessions_by_status: Record<string, number>;
+  avg_quality_score: number | null;
+  scored_session_count: number;
 }
 
 export interface CostBucket {

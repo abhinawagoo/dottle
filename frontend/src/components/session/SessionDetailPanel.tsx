@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { sessionsApi } from "@/lib/api";
+import { sessionsApi, scoresApi } from "@/lib/api";
+import { Score } from "@/lib/types";
 import { Span, SessionIssue, IssueSeverity } from "@/lib/types";
 import { StatusBadge, LoopBadge, SpanTypeBadge } from "@/components/ui/Badge";
 import { StatCard } from "@/components/ui/Card";
@@ -14,6 +15,7 @@ import {
   Radio, ShieldAlert, AlertCircle, Info, TrendingUp, Zap, Tag,
   User, FlaskConical, Sparkles, ExternalLink, MessageSquare,
   Stethoscope, CheckCircle2, Loader2, ChevronUp, GitBranch, GitCommit,
+  Star, Cpu,
 } from "lucide-react";
 
 /* ── helpers ─────────────────────────────────────────────────────────────────── */
@@ -326,6 +328,12 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
     enabled: !!sessionId,
   });
 
+  const { data: scores = [] } = useQuery<Score[]>({
+    queryKey: ["scores", sessionId],
+    queryFn: () => scoresApi.list(session!.project_id, sessionId),
+    enabled: !!session,
+  });
+
   if (isLoading) {
     return (
       <div className="p-5 space-y-4 animate-pulse">
@@ -543,6 +551,95 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
                   </div>
                 </div>
               )}
+
+              {/* ── Quality score card ── */}
+              {(() => {
+                const overall   = scores.find(s => s.name === "auto_quality");
+                const taskComp  = scores.find(s => s.name === "auto_task_completion");
+                const coherence = scores.find(s => s.name === "auto_coherence");
+                const efficiency= scores.find(s => s.name === "auto_efficiency");
+                if (!overall) return null;
+                const score = overall.value;
+                const color = score >= 0.8 ? "text-green-600 dark:text-green-400"
+                            : score >= 0.5 ? "text-amber-600 dark:text-amber-400"
+                            : "text-red-600 dark:text-red-400";
+                const barColor = score >= 0.8 ? "bg-green-500" : score >= 0.5 ? "bg-amber-500" : "bg-red-500";
+                const dims = [
+                  { label: "Task completion", v: taskComp?.value },
+                  { label: "Coherence",       v: coherence?.value },
+                  { label: "Efficiency",      v: efficiency?.value },
+                ];
+                return (
+                  <div className="rounded-xl border border-dark-border bg-dark-raised/40 overflow-hidden">
+                    <div className="flex items-center gap-3 px-4 py-3 border-b border-dark-border">
+                      <Star className="w-3.5 h-3.5 text-brand-400" />
+                      <span className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide">Auto Quality Score</span>
+                      <span className={`ml-auto text-2xl font-bold tabular-nums ${color}`}>
+                        {Math.round(score * 100)}
+                        <span className="text-sm font-normal text-ink-dim">/100</span>
+                      </span>
+                    </div>
+                    <div className="px-4 py-3 space-y-2">
+                      {dims.map(({ label, v }) => v != null && (
+                        <div key={label}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] text-ink-muted">{label}</span>
+                            <span className="text-[10px] font-semibold text-ink-secondary tabular-nums">{Math.round(v * 100)}</span>
+                          </div>
+                          <div className="h-1.5 bg-dark-bg rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${v >= 0.8 ? "bg-green-500" : v >= 0.5 ? "bg-amber-500" : "bg-red-500"}`}
+                              style={{ width: `${v * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                      {overall.comment && (
+                        <p className="text-[11px] text-ink-muted leading-relaxed pt-1 border-t border-dark-border mt-2">
+                          {overall.comment}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ── Token efficiency ── */}
+              {(() => {
+                const llmSpans = session.spans
+                  .filter(sp => sp.span_type === "llm" && ((sp.input_tokens ?? 0) + (sp.output_tokens ?? 0)) > 0)
+                  .sort((a, b) => ((b.input_tokens ?? 0) + (b.output_tokens ?? 0)) - ((a.input_tokens ?? 0) + (a.output_tokens ?? 0)))
+                  .slice(0, 5);
+                if (llmSpans.length === 0) return null;
+                const maxTokens = (llmSpans[0].input_tokens ?? 0) + (llmSpans[0].output_tokens ?? 0);
+                return (
+                  <div className="rounded-xl border border-dark-border overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-2.5 border-b border-dark-border bg-dark-raised/30">
+                      <Cpu className="w-3.5 h-3.5 text-ink-dim" />
+                      <span className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide">Token Usage by Span</span>
+                    </div>
+                    <div className="divide-y divide-dark-divider/40">
+                      {llmSpans.map(sp => {
+                        const total = (sp.input_tokens ?? 0) + (sp.output_tokens ?? 0);
+                        const pct = maxTokens > 0 ? (total / maxTokens) * 100 : 0;
+                        return (
+                          <div key={sp.id} className="px-4 py-2">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] text-ink-secondary truncate max-w-[180px]">{sp.name}</span>
+                              <span className="text-[10px] text-ink-muted tabular-nums ml-2 shrink-0">
+                                {sp.input_tokens ?? 0}↑ {sp.output_tokens ?? 0}↓ = {total.toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="h-1 bg-dark-bg rounded-full overflow-hidden">
+                              <div className="h-full bg-brand-500/60 rounded-full" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Stats */}
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
