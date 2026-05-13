@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Activity, BarChart2, Bell, Layers, Settings, ShieldAlert,
   Sun, Moon, LogOut, HelpCircle, Users, Wrench, FlaskConical,
-  GitCompare, Wand2, Tag, Bot, Database, Monitor,
+  GitCompare, Wand2, Tag, Bot, Database, Monitor, Brain,
   PanelLeftClose, GripVertical,
 } from "lucide-react";
 import InstrumentWizard from "@/components/onboarding/InstrumentWizard";
@@ -25,6 +25,7 @@ const NAV = [
   { href: "/monitor",  label: "Monitor",     icon: Monitor     },
   { href: "/metrics",  label: "Metrics",     icon: BarChart2   },
   { href: "/alerts",   label: "Alerts",      icon: Bell        },
+  { href: "/monitors", label: "Monitors",    icon: Brain       },
   { href: "/fix",      label: "Code Fixes",  icon: Wrench      },
 ];
 

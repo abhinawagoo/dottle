@@ -35,6 +35,32 @@ export interface Session {
   tags: string[];
   agent_version: string | null;
   issue_count: number;
+  quality_score: number | null;
+}
+
+export interface SemanticMonitor {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string | null;
+  pattern_prompt: string;
+  threshold_pct: number;
+  window_minutes: number;
+  min_sessions: number;
+  enabled: boolean;
+  last_fired_at: string | null;
+  created_at: string;
+}
+
+export interface MonitorEvent {
+  id: string;
+  semantic_monitor_id: string;
+  match_pct: number;
+  sessions_evaluated: number;
+  sessions_matched: number;
+  sample_session_ids: string | null;
+  ai_summary: string | null;
+  fired_at: string;
 }
 
 export interface Span {

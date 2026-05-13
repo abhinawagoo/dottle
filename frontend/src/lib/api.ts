@@ -427,3 +427,22 @@ export const alertsApi = {
   listEventsByRule: (projectId: string, ruleId: string): Promise<AlertEvent[]> =>
     api.get("/alerts/events", { params: { project_id: projectId, rule_id: ruleId } }).then(r => r.data),
 };
+
+
+// ── Semantic Monitors ─────────────────────────────────────────────────────────
+export const monitorsApi = {
+  list: (projectId: string) =>
+    api.get("/monitors", { params: { project_id: projectId } }).then(r => r.data),
+
+  create: (data: { project_id: string; name: string; description?: string; pattern_prompt: string; threshold_pct?: number; window_minutes?: number; min_sessions?: number }) =>
+    api.post("/monitors", data).then(r => r.data),
+
+  update: (id: string, data: Partial<{ name: string; description: string; pattern_prompt: string; threshold_pct: number; window_minutes: number; min_sessions: number; enabled: boolean }>) =>
+    api.patch(`/monitors/${id}`, data).then(r => r.data),
+
+  delete: (id: string) =>
+    api.delete(`/monitors/${id}`).then(r => r.data),
+
+  listEvents: (monitorId: string, limit?: number) =>
+    api.get(`/monitors/${monitorId}/events`, { params: { limit } }).then(r => r.data),
+};

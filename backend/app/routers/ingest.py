@@ -7,11 +7,13 @@ import json
 import uuid
 from datetime import datetime, timezone
 
+import asyncio
+
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.database import get_db, AsyncSessionLocal
 from app.models.project import Project
 from app.models.session import AgentSession
 from app.models.span import Span
@@ -21,6 +23,7 @@ from app.services.cost import compute_cost
 from app.services.loop_detector import analyze_spans
 from app.services.issue_detector import detect_all, SessionSnapshot
 from app.models.issue import SessionIssue
+from app.services.auto_quality import score_session
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -140,7 +143,30 @@ async def end_session(
         ))
 
     await db.flush()
+
+    # Fire-and-forget: auto quality scoring in a separate DB session
+    # so it never blocks or fails the ingest response.
+    asyncio.ensure_future(_bg_score_session(
+        session_id=session.id,
+        project_id=session.project_id,
+        org_id=project.org_id,
+        agent_name=session.agent_name,
+        status=session.status,
+        duration_ms=session.duration_ms,
+        total_tokens=session.total_tokens,
+        iteration_count=session.iteration_count,
+        loop_detected=session.loop_detected,
+        error_message=session.error_message,
+        spans=span_dicts,
+    ))
+
     return {"ok": True, "issues_detected": len(issues)}
+
+
+async def _bg_score_session(**kwargs) -> None:
+    """Runs auto quality scoring in its own AsyncSession so failures are isolated."""
+    async with AsyncSessionLocal() as bg_db:
+        await score_session(db=bg_db, **kwargs)
 
 
 @router.post("/spans", status_code=status.HTTP_202_ACCEPTED)

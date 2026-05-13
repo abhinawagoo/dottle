@@ -18,6 +18,7 @@ from app.database import get_db
 from app.models.session import AgentSession
 from app.models.span import Span
 from app.models.issue import SessionIssue
+from app.models.score import Score
 from app.schemas.session import SessionResponse, SessionDetailResponse, SessionListResponse, SpanResponse, IssueResponse
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -80,9 +81,11 @@ async def list_sessions(
     )
     sessions = result.scalars().all()
 
-    # Fetch issue counts for all sessions in one query
+    # Fetch issue counts + quality scores for all sessions in one pass each
     session_ids = [s.id for s in sessions]
     issue_counts: dict[uuid.UUID, int] = {}
+    quality_scores: dict[uuid.UUID, float] = {}
+
     if session_ids:
         ic_result = await db.execute(
             select(SessionIssue.session_id, func.count(SessionIssue.id).label("cnt"))
@@ -91,11 +94,26 @@ async def list_sessions(
         )
         issue_counts = {row.session_id: row.cnt for row in ic_result}
 
+        # Latest auto_quality score per session
+        sq_result = await db.execute(
+            select(Score.session_id, Score.value)
+            .where(
+                Score.session_id.in_(session_ids),
+                Score.name == "auto_quality",
+            )
+            .order_by(Score.session_id, Score.created_at.desc())
+            .distinct(Score.session_id)
+        )
+        quality_scores = {row.session_id: row.value for row in sq_result}
+
     return SessionListResponse(
         total=total,
         page=page,
         page_size=page_size,
-        items=[_to_session_response(s, issue_counts.get(s.id, 0)) for s in sessions],
+        items=[
+            _to_session_response(s, issue_counts.get(s.id, 0), quality_scores.get(s.id))
+            for s in sessions
+        ],
     )
 
 
@@ -713,7 +731,11 @@ Be specific — reference actual span names, error messages, and values from the
         )
 
 
-def _to_session_response(session: AgentSession, issue_count: int = 0) -> SessionResponse:
+def _to_session_response(
+    session: AgentSession,
+    issue_count: int = 0,
+    quality_score: float | None = None,
+) -> SessionResponse:
     return SessionResponse(
         id=session.id,
         project_id=session.project_id,
@@ -739,4 +761,5 @@ def _to_session_response(session: AgentSession, issue_count: int = 0) -> Session
         tags=session.tags or [],
         agent_version=session.agent_version,
         issue_count=issue_count,
+        quality_score=quality_score,
     )

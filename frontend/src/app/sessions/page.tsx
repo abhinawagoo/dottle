@@ -284,6 +284,7 @@ export default function SessionsPage() {
                   </th>
                   <th className="px-3 py-2 text-left font-semibold">IDs / Names</th>
                   <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Time</th>
+                  <th className="px-3 py-2 text-left font-semibold whitespace-nowrap" title="Auto quality score (0–100)">Quality</th>
                   {!detailOpen && (
                     <>
                       <th className="px-3 py-2 text-left font-semibold">User</th>
@@ -355,6 +356,21 @@ export default function SessionsPage() {
                       {/* Time */}
                       <td className="px-3 py-2 text-[10px] text-ink-muted whitespace-nowrap">
                         {formatDistanceToNow(new Date(s.started_at), { addSuffix: true })}
+                      </td>
+
+                      {/* Quality score */}
+                      <td className="px-3 py-2">
+                        {s.quality_score != null ? (
+                          <span className={`text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded ${
+                            s.quality_score >= 0.8 ? "text-green-700 dark:text-green-400 bg-green-500/10"
+                            : s.quality_score >= 0.5 ? "text-amber-700 dark:text-amber-400 bg-amber-500/10"
+                            : "text-red-700 dark:text-red-400 bg-red-500/10"
+                          }`}>
+                            {Math.round(s.quality_score * 100)}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-ink-dim">—</span>
+                        )}
                       </td>
 
                       {/* Expanded columns — hidden when detail panel is open */}
