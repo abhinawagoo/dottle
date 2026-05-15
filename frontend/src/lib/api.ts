@@ -6,6 +6,7 @@ import type {
   AlertRule, AlertEvent,
   Score, PromptVersion, EvalConfig, EvalResult,
   DatasetSummary, DatasetDetail, PlaygroundResult,
+  SemanticMonitor,
 } from "./types";
 import type { Org } from "./org-context";
 
@@ -266,6 +267,7 @@ export const sessionsApi = {
     user_email?: string;
     agent_version?: string;
     tag?: string;
+    monitor_id?: string;
     from?: string;
     to?: string;
     page?: number;
@@ -441,7 +443,7 @@ export const alertsApi = {
 
 // ── Semantic Monitors ─────────────────────────────────────────────────────────
 export const monitorsApi = {
-  list: (projectId: string) =>
+  list: (projectId: string): Promise<SemanticMonitor[]> =>
     api.get("/monitors", { params: { project_id: projectId } }).then(r => r.data),
 
   create: (data: { project_id: string; name: string; description?: string; pattern_prompt: string; threshold_pct?: number; window_minutes?: number; min_sessions?: number; model_provider?: string | null }) =>

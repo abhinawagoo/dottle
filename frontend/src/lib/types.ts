@@ -36,6 +36,7 @@ export interface Session {
   agent_version: string | null;
   issue_count: number;
   quality_score: number | null;
+  behavior_flag_names: string[];
 }
 
 export interface SemanticMonitor {

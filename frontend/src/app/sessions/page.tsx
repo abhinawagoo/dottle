@@ -1,14 +1,14 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { sessionsApi } from "@/lib/api";
+import { sessionsApi, monitorsApi } from "@/lib/api";
 import { LoopBadge } from "@/components/ui/Badge";
 import { SessionDetailPanel } from "@/components/session/SessionDetailPanel";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import {
   Search, X, Tag, User, Download, GitCompare,
-  ChevronLeft, ChevronRight, Settings, Layers, ArrowRight,
+  ChevronLeft, ChevronRight, Settings, Layers, ArrowRight, Brain,
 } from "lucide-react";
 import { useProject } from "@/lib/project-context";
 import { Button } from "@/components/ui/Button";
@@ -42,9 +42,16 @@ export default function SessionsPage() {
   const [tagInput, setTagInput]         = useState("");
   const [userFilter, setUserFilter]     = useState("");
   const [userInput, setUserInput]       = useState("");
+  const [monitorFilter, setMonitorFilter] = useState("");
+
+  const { data: monitors = [] } = useQuery({
+    queryKey: ["monitors", PROJECT_ID],
+    queryFn: () => monitorsApi.list(PROJECT_ID),
+    enabled: !!PROJECT_ID,
+  });
 
   const { data, isLoading } = useQuery({
-    queryKey: ["sessions", PROJECT_ID, page, statusFilter, loopFilter, search, tagFilter, userFilter],
+    queryKey: ["sessions", PROJECT_ID, page, statusFilter, loopFilter, search, tagFilter, userFilter, monitorFilter],
     queryFn: () =>
       sessionsApi.list({
         project_id: PROJECT_ID,
@@ -55,13 +62,14 @@ export default function SessionsPage() {
         search:       search       || undefined,
         tag:          tagFilter    || undefined,
         user_email:   userFilter   || undefined,
+        monitor_id:   monitorFilter || undefined,
       }),
     enabled: !!PROJECT_ID,
   });
 
   const sessions   = data?.items ?? [];
   const totalPages = Math.ceil((data?.total ?? 0) / 50);
-  const hasFilters = !!statusFilter || loopFilter || !!search || !!tagFilter || !!userFilter;
+  const hasFilters = !!statusFilter || loopFilter || !!search || !!tagFilter || !!userFilter || !!monitorFilter;
 
   // Detail-panel navigation
   const currentIndex = sessions.findIndex(s => s.id === selectedSessionId);
@@ -114,6 +122,7 @@ export default function SessionsPage() {
     setSearch(""); setSearchInput("");
     setTagFilter(""); setTagInput("");
     setUserFilter(""); setUserInput("");
+    setMonitorFilter("");
     setPage(1);
   }
 
@@ -190,6 +199,24 @@ export default function SessionsPage() {
             <option value="timed_out">Timed out</option>
           </select>
 
+          {/* Monitor behavior filter */}
+          {monitors.length > 0 && (
+            <div className="relative flex items-center gap-1">
+              <Brain className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-amber-500 pointer-events-none" />
+              <select
+                value={monitorFilter}
+                onChange={e => { setMonitorFilter(e.target.value); setPage(1); }}
+                className="input-dark h-6 text-[11px] pl-6"
+                title="Filter by behavioral flag"
+              >
+                <option value="">All behaviors</option>
+                {monitors.map((m: { id: string; name: string }) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Loops */}
           <label className="flex items-center gap-1 text-[10px] text-ink-muted cursor-pointer whitespace-nowrap">
             <input
@@ -252,6 +279,12 @@ export default function SessionsPage() {
             {loopFilter   && <span className="pill-filter">loops only</span>}
             {tagFilter    && <span className="pill-filter">tag: {tagFilter}</span>}
             {userFilter   && <span className="pill-filter">user: {userFilter}</span>}
+            {monitorFilter && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
+                <Brain className="w-2.5 h-2.5" />
+                {monitors.find((m: { id: string; name: string }) => m.id === monitorFilter)?.name ?? "monitor"}
+              </span>
+            )}
           </div>
         )}
 
@@ -343,6 +376,15 @@ export default function SessionsPage() {
                           {s.issue_count > 0 && (
                             <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
                               {s.issue_count}i
+                            </span>
+                          )}
+                          {s.behavior_flag_names?.length > 0 && (
+                            <span
+                              className="inline-flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20 font-medium"
+                              title={s.behavior_flag_names.join(", ")}
+                            >
+                              <Brain className="w-2 h-2" />
+                              {s.behavior_flag_names.length}
                             </span>
                           )}
                           {s.tags?.slice(0, detailOpen ? 1 : 2).map(t => (

@@ -19,6 +19,7 @@ import {
   ChevronDown, ChevronRight, Radio, ShieldAlert,
   AlertCircle, Info, TrendingUp, Zap, Tag, User, FlaskConical, Sparkles,
   ThumbsUp, ThumbsDown, Database, Play, Loader2, Send, RotateCcw, GripVertical,
+  Brain, ExternalLink,
 } from "lucide-react";
 
 interface Props { params: { id: string } }
@@ -477,6 +478,12 @@ export default function SessionDetailPage({ params }: Props) {
     },
   });
 
+  const { data: behaviors = [] } = useQuery({
+    queryKey: ["behaviors", params.id],
+    queryFn: () => sessionsApi.behaviors(params.id),
+    enabled: !!session,
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-4 max-w-7xl mx-auto">
@@ -612,6 +619,47 @@ export default function SessionDetailPage({ params }: Props) {
           <div>
             <p className="text-sm font-semibold text-red-400">{session.error_type ?? "Error"}</p>
             <p className="text-xs font-mono text-red-400/70 mt-0.5">{session.error_message}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Behavioral Flags */}
+      {behaviors.length > 0 && (
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-500/20">
+            <Brain className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide">
+              Behavioral Flags
+            </span>
+            <span className="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[10px] font-bold">
+              {behaviors.length}
+            </span>
+          </div>
+          <div className="divide-y divide-amber-500/10">
+            {behaviors.map((flag) => (
+              <div key={flag.monitor_id} className="px-4 py-3 flex items-start gap-3">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="text-[12px] font-semibold text-amber-700 dark:text-amber-300">
+                    {flag.monitor_name}
+                  </span>
+                  {flag.reason && (
+                    <p className="text-[11px] text-amber-700/70 dark:text-amber-400/70 mt-0.5 leading-snug">
+                      {flag.reason}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-ink-dim mt-1 italic">
+                    Pattern: {flag.pattern_prompt}
+                  </p>
+                </div>
+                <Link
+                  href={`/monitors?highlight=${flag.monitor_id}`}
+                  className="shrink-0 flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 hover:underline"
+                >
+                  Monitor <ExternalLink className="w-2.5 h-2.5" />
+                </Link>
+              </div>
+            ))}
           </div>
         </div>
       )}

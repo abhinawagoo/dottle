@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { monitorsApi, aiProvidersApi } from "@/lib/api";
 import { useProject } from "@/lib/project-context";
@@ -7,6 +7,7 @@ import { useOrg } from "@/lib/org-context";
 import { SemanticMonitor, MonitorEvent } from "@/lib/types";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Plus, Trash2, ToggleLeft, ToggleRight, ChevronDown,
   Brain, Zap, TrendingUp, AlertTriangle, ExternalLink,
@@ -219,9 +220,16 @@ function CreateMonitorModal({
 }
 
 // ── Monitor card ───────────────────────────────────────────────────────────────
-function MonitorCard({ monitor, projectId }: { monitor: SemanticMonitor; projectId: string }) {
+function MonitorCard({ monitor, projectId, highlight }: { monitor: SemanticMonitor; projectId: string; highlight?: boolean }) {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (highlight && cardRef.current) {
+      cardRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlight]);
 
   const toggle = useMutation({
     mutationFn: () => monitorsApi.update(monitor.id, { enabled: !monitor.enabled }),
@@ -242,7 +250,7 @@ function MonitorCard({ monitor, projectId }: { monitor: SemanticMonitor; project
   const providerBadge = monitor.model_provider ? PROVIDER_BADGE[monitor.model_provider] : null;
 
   return (
-    <div className={`border rounded-xl overflow-hidden transition-all ${monitor.enabled ? "border-dark-border" : "border-dark-border opacity-60"}`}>
+    <div ref={cardRef} className={`border rounded-xl overflow-hidden transition-all ${highlight ? "ring-2 ring-amber-400/60" : ""} ${monitor.enabled ? "border-dark-border" : "border-dark-border opacity-60"}`}>
       {/* Entire header row is clickable to expand */}
       <div
         role="button"
@@ -364,6 +372,8 @@ export default function MonitorsPage() {
   const { selectedProject } = useProject();
   const { selectedOrg } = useOrg();
   const [showNew, setShowNew] = useState(false);
+  const searchParams = useSearchParams();
+  const highlightId = searchParams.get("highlight");
 
   const { data: monitors = [], isLoading } = useQuery<SemanticMonitor[]>({
     queryKey: ["monitors", selectedProject?.id],
@@ -442,13 +452,13 @@ export default function MonitorsPage() {
           {active.length > 0 && (
             <>
               <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide">Active ({active.length})</p>
-              {active.map(m => <MonitorCard key={m.id} monitor={m} projectId={selectedProject.id} />)}
+              {active.map(m => <MonitorCard key={m.id} monitor={m} projectId={selectedProject.id} highlight={m.id === highlightId} />)}
             </>
           )}
           {inactive.length > 0 && (
             <>
               <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide mt-4">Disabled ({inactive.length})</p>
-              {inactive.map(m => <MonitorCard key={m.id} monitor={m} projectId={selectedProject.id} />)}
+              {inactive.map(m => <MonitorCard key={m.id} monitor={m} projectId={selectedProject.id} highlight={m.id === highlightId} />)}
             </>
           )}
         </div>

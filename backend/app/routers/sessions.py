@@ -36,6 +36,7 @@ async def list_sessions(
     user_email: str | None = None,
     agent_version: str | None = None,
     tag: str | None = None,
+    monitor_id: uuid.UUID | None = None,
     from_: datetime | None = Query(None, alias="from"),
     to: datetime | None = None,
     page: int = 1,
@@ -66,6 +67,16 @@ async def list_sessions(
         conditions.append(AgentSession.started_at >= from_)
     if to:
         conditions.append(AgentSession.started_at <= to)
+    if monitor_id:
+        # Only sessions flagged (matched=True) by the given monitor
+        flagged_subq = (
+            select(MonitorSessionFlag.session_id)
+            .where(
+                MonitorSessionFlag.monitor_id == monitor_id,
+                MonitorSessionFlag.matched == True,  # noqa: E712
+            )
+        )
+        conditions.append(AgentSession.id.in_(flagged_subq))
 
     count_result = await db.execute(
         select(func.count(AgentSession.id)).where(and_(*conditions))
@@ -82,10 +93,11 @@ async def list_sessions(
     )
     sessions = result.scalars().all()
 
-    # Fetch issue counts + quality scores for all sessions in one pass each
+    # Fetch issue counts + quality scores + behavior flag names in one pass each
     session_ids = [s.id for s in sessions]
     issue_counts: dict[uuid.UUID, int] = {}
     quality_scores: dict[uuid.UUID, float] = {}
+    behavior_flags: dict[uuid.UUID, list[str]] = {}
 
     if session_ids:
         ic_result = await db.execute(
@@ -107,12 +119,29 @@ async def list_sessions(
         )
         quality_scores = {row.session_id: row.value for row in sq_result}
 
+        # Behavior flag names (matched=True) per session
+        bf_result = await db.execute(
+            select(MonitorSessionFlag.session_id, SemanticMonitor.name)
+            .join(SemanticMonitor, MonitorSessionFlag.monitor_id == SemanticMonitor.id)
+            .where(
+                MonitorSessionFlag.session_id.in_(session_ids),
+                MonitorSessionFlag.matched == True,  # noqa: E712
+            )
+        )
+        for row in bf_result:
+            behavior_flags.setdefault(row.session_id, []).append(row.name)
+
     return SessionListResponse(
         total=total,
         page=page,
         page_size=page_size,
         items=[
-            _to_session_response(s, issue_counts.get(s.id, 0), quality_scores.get(s.id))
+            _to_session_response(
+                s,
+                issue_counts.get(s.id, 0),
+                quality_scores.get(s.id),
+                behavior_flags.get(s.id),
+            )
             for s in sessions
         ],
     )
@@ -736,6 +765,7 @@ def _to_session_response(
     session: AgentSession,
     issue_count: int = 0,
     quality_score: float | None = None,
+    behavior_flag_names: list[str] | None = None,
 ) -> SessionResponse:
     return SessionResponse(
         id=session.id,
@@ -763,6 +793,7 @@ def _to_session_response(
         agent_version=session.agent_version,
         issue_count=issue_count,
         quality_score=quality_score,
+        behavior_flag_names=behavior_flag_names or [],
     )
 
 
