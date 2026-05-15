@@ -277,6 +277,9 @@ export const sessionsApi = {
 
   diagnose: (sessionId: string): Promise<{ root_cause: string; suggestions: string[]; severity: string }> =>
     api.post(`/sessions/${sessionId}/diagnose`).then(r => r.data),
+
+  behaviors: (sessionId: string): Promise<import("./types").BehaviorFlag[]> =>
+    api.get(`/sessions/${sessionId}/behaviors`).then(r => r.data),
 };
 
 // ── Metrics ──────────────────────────────────────────────────────────────────

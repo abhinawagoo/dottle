@@ -19,6 +19,7 @@ from app.models.session import AgentSession
 from app.models.span import Span
 from app.models.issue import SessionIssue
 from app.models.score import Score
+from app.models.semantic_monitor import MonitorSessionFlag, SemanticMonitor
 from app.schemas.session import SessionResponse, SessionDetailResponse, SessionListResponse, SpanResponse, IssueResponse
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -763,3 +764,41 @@ def _to_session_response(
         issue_count=issue_count,
         quality_score=quality_score,
     )
+
+
+# ── Behavioral flags ──────────────────────────────────────────────────────────
+
+class BehaviorFlag(BaseModel):
+    monitor_id: str
+    monitor_name: str
+    pattern_prompt: str
+    reason: str | None
+    evaluated_at: str
+
+
+@router.get("/{session_id}/behaviors", response_model=list[BehaviorFlag])
+async def get_session_behaviors(
+    session_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Return all semantic monitor matches (behavioral flags) for a session."""
+    result = await db.execute(
+        select(MonitorSessionFlag, SemanticMonitor.name, SemanticMonitor.pattern_prompt)
+        .join(SemanticMonitor, MonitorSessionFlag.monitor_id == SemanticMonitor.id)
+        .where(
+            MonitorSessionFlag.session_id == session_id,
+            MonitorSessionFlag.matched == True,  # noqa: E712
+        )
+        .order_by(MonitorSessionFlag.evaluated_at.desc())
+    )
+    rows = result.all()
+    return [
+        BehaviorFlag(
+            monitor_id=str(row.MonitorSessionFlag.monitor_id),
+            monitor_name=row.name,
+            pattern_prompt=row.pattern_prompt,
+            reason=row.MonitorSessionFlag.reason,
+            evaluated_at=row.MonitorSessionFlag.evaluated_at.isoformat(),
+        )
+        for row in rows
+    ]

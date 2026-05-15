@@ -134,6 +134,14 @@ export interface CostOverTimeResponse {
   series: CostBucket[];
 }
 
+export interface BehaviorFlag {
+  monitor_id: string;
+  monitor_name: string;
+  pattern_prompt: string;
+  reason: string | null;
+  evaluated_at: string;
+}
+
 export interface AgentTokenStat {
   agent_name: string;
   avg_input_tokens: number;

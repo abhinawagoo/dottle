@@ -21,7 +21,7 @@ from app.models.ai_provider import OrgAIProvider
 from app.models.project import Project
 from app.models.session import AgentSession
 from app.models.span import Span
-from app.models.semantic_monitor import SemanticMonitor, MonitorEvent
+from app.models.semantic_monitor import SemanticMonitor, MonitorEvent, MonitorSessionFlag
 from app.services.notifier import dispatch_alert
 
 logger = logging.getLogger(__name__)
@@ -73,7 +73,8 @@ Does this session exhibit the pattern described above?
 Reply with ONLY a JSON object: {{"match": true/false, "confidence": 0.0-1.0, "reason": "one sentence"}}"""
 
 
-async def _check_session(api_key: str, provider: str, pattern_prompt: str, session_summary: str) -> Optional[bool]:
+async def _check_session(api_key: str, provider: str, pattern_prompt: str, session_summary: str) -> Optional[tuple[bool, str]]:
+    """Returns (matched, reason) or None on provider error."""
     prompt = _detection_prompt(pattern_prompt, session_summary)
     try:
         if provider == "openai":
@@ -84,14 +85,14 @@ async def _check_session(api_key: str, provider: str, pattern_prompt: str, sessi
                     json={
                         "model": "gpt-4o-mini",
                         "messages": [{"role": "user", "content": prompt}],
-                        "max_tokens": 80,
+                        "max_tokens": 120,
                         "temperature": 0.0,
                         "response_format": {"type": "json_object"},
                     },
                 )
                 resp.raise_for_status()
                 data = json.loads(resp.json()["choices"][0]["message"]["content"])
-                return bool(data.get("match", False))
+                return bool(data.get("match", False)), str(data.get("reason", ""))
 
         elif provider == "anthropic":
             async with httpx.AsyncClient(timeout=TIMEOUT) as client:
@@ -104,7 +105,7 @@ async def _check_session(api_key: str, provider: str, pattern_prompt: str, sessi
                     },
                     json={
                         "model": "claude-haiku-4-5-20251001",
-                        "max_tokens": 80,
+                        "max_tokens": 120,
                         "messages": [{"role": "user", "content": prompt}],
                     },
                 )
@@ -113,7 +114,7 @@ async def _check_session(api_key: str, provider: str, pattern_prompt: str, sessi
                 if text.startswith("```"):
                     text = text.split("```")[1].lstrip("json").strip()
                 data = json.loads(text)
-                return bool(data.get("match", False))
+                return bool(data.get("match", False)), str(data.get("reason", ""))
 
         elif provider == "groq":
             async with httpx.AsyncClient(timeout=TIMEOUT) as client:
@@ -123,7 +124,7 @@ async def _check_session(api_key: str, provider: str, pattern_prompt: str, sessi
                     json={
                         "model": "llama-3.1-8b-instant",
                         "messages": [{"role": "user", "content": prompt}],
-                        "max_tokens": 80,
+                        "max_tokens": 120,
                         "temperature": 0.0,
                     },
                 )
@@ -132,7 +133,7 @@ async def _check_session(api_key: str, provider: str, pattern_prompt: str, sessi
                 if text.startswith("```"):
                     text = text.split("```")[1].lstrip("json").strip()
                 data = json.loads(text)
-                return bool(data.get("match", False))
+                return bool(data.get("match", False)), str(data.get("reason", ""))
 
     except Exception as exc:
         logger.warning(f"[semantic-monitor] {provider} check failed: {exc}")
@@ -192,26 +193,32 @@ async def evaluate_monitor(monitor: SemanticMonitor, db: AsyncSession) -> None:
     if not api_key:
         return
 
-    # Fetch recent completed sessions
+    # Fetch sessions NOT yet evaluated for this monitor (use cursor to avoid re-evaluation)
     window_start = now - timedelta(minutes=monitor.window_minutes)
+    # Use the later of: window_start OR session_cursor (whichever is more recent)
+    cursor = monitor.session_cursor
+    eval_from = max(window_start, cursor) if cursor else window_start
+
     sess_result = await db.execute(
         select(AgentSession)
         .where(
             AgentSession.project_id == monitor.project_id,
-            AgentSession.started_at >= window_start,
+            AgentSession.started_at > eval_from,   # strictly newer than cursor
+            AgentSession.started_at <= now,
             AgentSession.status.in_(["completed", "failed"]),
         )
-        .order_by(AgentSession.started_at.desc())
+        .order_by(AgentSession.started_at.asc())
         .limit(MAX_SESSIONS_PER_RUN)
     )
     sessions = sess_result.scalars().all()
 
     if len(sessions) < monitor.min_sessions:
-        return  # not enough data yet
+        return  # not enough new sessions yet
 
-    # Evaluate each session
+    # Evaluate each session — store flag + reason per session
     matched_ids: list[str] = []
     evaluated = 0
+    new_cursor = cursor  # will advance to the latest session we process
 
     for session in sessions:
         # Load spans for this session
@@ -224,13 +231,38 @@ async def evaluate_monitor(monitor: SemanticMonitor, db: AsyncSession) -> None:
         spans = span_result.scalars().all()
 
         summary = _summarise_session(session, spans)
-        match = await _check_session(api_key, provider_name, monitor.pattern_prompt, summary)
+        result = await _check_session(api_key, provider_name, monitor.pattern_prompt, summary)
 
-        if match is None:
+        if result is None:
             continue   # provider error — don't count this session
+        match, reason = result
         evaluated += 1
+
+        # Store per-session flag
+        flag = MonitorSessionFlag(
+            monitor_id=monitor.id,
+            session_id=session.id,
+            project_id=monitor.project_id,
+            matched=match,
+            reason=reason or None,
+        )
+        db.add(flag)
+
         if match:
             matched_ids.append(str(session.id))
+
+        # Advance cursor
+        if new_cursor is None or session.started_at > new_cursor:
+            new_cursor = session.started_at
+
+    # Update cursor so next run only evaluates newer sessions
+    if new_cursor and new_cursor != cursor:
+        await db.execute(
+            sa_update(SemanticMonitor)
+            .where(SemanticMonitor.id == monitor.id)
+            .values(session_cursor=new_cursor)
+        )
+        await db.commit()
 
     if evaluated == 0:
         return

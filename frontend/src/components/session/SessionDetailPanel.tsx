@@ -2,20 +2,20 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { sessionsApi, scoresApi } from "@/lib/api";
-import { Score } from "@/lib/types";
+import { Score, BehaviorFlag } from "@/lib/types";
 import { Span, SessionIssue, IssueSeverity } from "@/lib/types";
 import { StatusBadge, LoopBadge, SpanTypeBadge } from "@/components/ui/Badge";
 import { StatCard } from "@/components/ui/Card";
 import SessionAIChat from "@/components/ui/SessionAIChat";
 import TraceTimeline from "@/components/timeline/TraceTimeline";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import {
   AlertTriangle, XCircle, Layers, ChevronDown, ChevronRight,
   Radio, ShieldAlert, AlertCircle, Info, TrendingUp, Zap, Tag,
   User, FlaskConical, Sparkles, ExternalLink, MessageSquare,
   Stethoscope, CheckCircle2, Loader2, ChevronUp, GitBranch, GitCommit,
-  Star, Cpu,
+  Star, Cpu, Brain,
 } from "lucide-react";
 
 /* ── helpers ─────────────────────────────────────────────────────────────────── */
@@ -334,6 +334,12 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
     enabled: !!session,
   });
 
+  const { data: behaviors = [] } = useQuery<BehaviorFlag[]>({
+    queryKey: ["behaviors", sessionId],
+    queryFn: () => sessionsApi.behaviors(sessionId),
+    enabled: !!session,
+  });
+
   if (isLoading) {
     return (
       <div className="p-5 space-y-4 animate-pulse">
@@ -548,6 +554,52 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
                   <div>
                     <p className="text-xs font-semibold text-red-400">{session.error_type ?? "Error"}</p>
                     <p className="text-[11px] font-mono text-red-400/70 mt-0.5">{session.error_message}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Behavioral flags from semantic monitors ── */}
+              {behaviors.length > 0 && (
+                <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-500/20">
+                    <Brain className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide">
+                      Behavioral Flags
+                    </span>
+                    <span className="ml-auto text-[10px] bg-amber-500/15 border border-amber-500/25 text-amber-700 dark:text-amber-300 rounded-full px-1.5 py-0.5">
+                      {behaviors.length}
+                    </span>
+                  </div>
+                  <div className="divide-y divide-amber-500/15">
+                    {behaviors.map((flag) => (
+                      <div key={flag.monitor_id} className="px-4 py-3 flex items-start gap-3">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                            <span className="text-[12px] font-semibold text-amber-700 dark:text-amber-300">
+                              {flag.monitor_name}
+                            </span>
+                            <span className="text-[10px] text-amber-600/70 dark:text-amber-400/60">
+                              {formatDistanceToNow(new Date(flag.evaluated_at), { addSuffix: true })}
+                            </span>
+                          </div>
+                          {flag.reason && (
+                            <p className="text-[11px] text-amber-700/80 dark:text-amber-300/80 leading-relaxed">
+                              {flag.reason}
+                            </p>
+                          )}
+                          <p className="text-[10px] text-ink-dim mt-1 italic">
+                            Pattern: {flag.pattern_prompt}
+                          </p>
+                        </div>
+                        <Link
+                          href="/monitors"
+                          className="shrink-0 text-[10px] text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-0.5"
+                        >
+                          Monitor <ExternalLink className="w-2.5 h-2.5" />
+                        </Link>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
