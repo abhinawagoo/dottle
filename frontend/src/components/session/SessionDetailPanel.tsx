@@ -309,10 +309,18 @@ export interface SessionDetailPanelProps {
   hideExternalLink?: boolean;
 }
 
+const SCORING_PROVIDERS = [
+  { value: "openai",    label: "OpenAI GPT-4o mini" },
+  { value: "anthropic", label: "Anthropic Haiku" },
+  { value: "groq",      label: "Groq Llama 3" },
+  { value: "gemini",    label: "Gemini 1.5 Flash" },
+];
+
 export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetailPanelProps) {
   const [tab, setTab]           = useState<Tab>("overview");
   const [chatOpen, setChatOpen] = useState(false);
   const [rescoreMsg, setRescoreMsg] = useState<string | null>(null);
+  const [scoringProvider, setScoringProvider] = useState("");
   const qc = useQueryClient();
   const isLive = (status: string) => status === "running" || status === "looping";
 
@@ -321,7 +329,7 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
   });
 
   const rescoreMutation = useMutation({
-    mutationFn: () => sessionsApi.rescore(sessionId),
+    mutationFn: () => sessionsApi.rescore(sessionId, scoringProvider || undefined),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["scores", sessionId] });
       qc.invalidateQueries({ queryKey: ["session", sessionId] });
@@ -633,11 +641,22 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
                 ];
 
                 if (!overall) {
-                  // No score yet — show prompt to run scoring
+                  // No score yet — show provider picker + trigger button
                   return (
-                    <div className="rounded-xl border border-dark-border bg-dark-raised/40 px-4 py-3 flex items-center gap-3">
+                    <div className="rounded-xl border border-dark-border bg-dark-raised/40 px-4 py-3 flex items-center gap-2 flex-wrap">
                       <Star className="w-3.5 h-3.5 text-ink-dim shrink-0" />
                       <span className="text-[11px] text-ink-dim flex-1">No AI quality score yet.</span>
+                      <select
+                        value={scoringProvider}
+                        onChange={e => setScoringProvider(e.target.value)}
+                        className="input-dark h-6 text-[10px] pr-5"
+                        title="AI provider to use for scoring"
+                      >
+                        <option value="">Auto</option>
+                        {SCORING_PROVIDERS.map(p => (
+                          <option key={p.value} value={p.value}>{p.label}</option>
+                        ))}
+                      </select>
                       <button
                         onClick={() => rescoreMutation.mutate()}
                         disabled={rescoreMutation.isPending || !session || isLive(session.status)}
@@ -666,6 +685,17 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
                         {Math.round(score * 100)}
                         <span className="text-sm font-normal text-ink-dim">/100</span>
                       </span>
+                      <select
+                        value={scoringProvider}
+                        onChange={e => setScoringProvider(e.target.value)}
+                        className="input-dark h-5 text-[9px] pr-4 ml-2"
+                        title="AI provider for re-scoring"
+                      >
+                        <option value="">Auto</option>
+                        {SCORING_PROVIDERS.map(p => (
+                          <option key={p.value} value={p.value}>{p.label}</option>
+                        ))}
+                      </select>
                       <button
                         onClick={() => rescoreMutation.mutate()}
                         disabled={rescoreMutation.isPending}

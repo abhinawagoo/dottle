@@ -185,11 +185,19 @@ function SpanRow({ span }: { span: Span }) {
   );
 }
 
+const PROVIDERS = [
+  { value: "openai",    label: "OpenAI GPT-4o mini" },
+  { value: "anthropic", label: "Anthropic Haiku" },
+  { value: "groq",      label: "Groq Llama 3" },
+  { value: "gemini",    label: "Gemini 1.5 Flash" },
+];
+
 /* ── Score panel ───────────────────────────────────────────────────────────── */
 function ScorePanel({ sessionId, projectId }: { sessionId: string; projectId: string }) {
   const qc = useQueryClient();
   const [comment, setComment] = useState("");
   const [rescoreMsg, setRescoreMsg] = useState<string | null>(null);
+  const [scoringProvider, setScoringProvider] = useState("");
 
   const { data: scores = [] } = useQuery({
     queryKey: ["scores", sessionId],
@@ -209,7 +217,7 @@ function ScorePanel({ sessionId, projectId }: { sessionId: string; projectId: st
   });
 
   const rescore = useMutation({
-    mutationFn: () => sessionsApi.rescore(sessionId),
+    mutationFn: () => sessionsApi.rescore(sessionId, scoringProvider || undefined),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["scores", sessionId] });
       qc.invalidateQueries({ queryKey: ["session", sessionId] });
@@ -268,8 +276,17 @@ function ScorePanel({ sessionId, projectId }: { sessionId: string; projectId: st
         {/* AI evaluator scores */}
         {modelScores.length > 0 && (
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-semibold text-ink-dim uppercase tracking-wide">AI Evaluators</p>
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <p className="text-[10px] font-semibold text-ink-dim uppercase tracking-wide flex-1">AI Evaluators</p>
+              <select
+                value={scoringProvider}
+                onChange={e => setScoringProvider(e.target.value)}
+                className="input-dark h-5 text-[10px] pr-5"
+                title="AI provider to use for scoring"
+              >
+                <option value="">Auto (best available)</option>
+                {PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
               <button
                 onClick={() => rescore.mutate()}
                 disabled={rescore.isPending}
@@ -296,14 +313,23 @@ function ScorePanel({ sessionId, projectId }: { sessionId: string; projectId: st
           </div>
         )}
 
-        {/* No scores yet — show Re-score button to trigger on demand */}
+        {/* No scores yet — show provider picker + trigger button */}
         {!hasAutoScores && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             <p className="text-[11px] text-ink-dim flex-1">
               {scores.length === 0
                 ? "No scores yet. Rate above or run AI scoring."
                 : "No AI evaluator scores yet."}
             </p>
+            <select
+              value={scoringProvider}
+              onChange={e => setScoringProvider(e.target.value)}
+              className="input-dark h-7 text-[11px] pr-6"
+              title="AI provider to use for scoring"
+            >
+              <option value="">Auto (best available)</option>
+              {PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
             <button
               onClick={() => rescore.mutate()}
               disabled={rescore.isPending}

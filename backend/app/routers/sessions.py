@@ -839,6 +839,10 @@ async def get_session_behaviors(
 
 # ── Re-score ──────────────────────────────────────────────────────────────────
 
+class RescoreRequest(BaseModel):
+    provider: str | None = None   # openai | anthropic | groq | gemini — None = auto
+
+
 class RescoreResponse(BaseModel):
     ok: bool
     message: str
@@ -847,6 +851,7 @@ class RescoreResponse(BaseModel):
 @router.post("/{session_id}/rescore", response_model=RescoreResponse)
 async def rescore_session(
     session_id: uuid.UUID,
+    body: RescoreRequest = RescoreRequest(),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete existing auto_quality scores and re-run quality scoring for the session."""
@@ -917,6 +922,8 @@ async def rescore_session(
             error_message=session.error_message,
             spans=span_dicts,
             db=bg_db,
+            preferred_provider=body.provider,
         )
 
-    return RescoreResponse(ok=True, message="Quality scores updated")
+    provider_label = f" via {body.provider}" if body.provider else ""
+    return RescoreResponse(ok=True, message=f"Quality scores updated{provider_label}")

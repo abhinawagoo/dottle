@@ -202,11 +202,13 @@ async def score_session(
     error_message: str | None,
     spans: list[dict],
     db: AsyncSession,
+    preferred_provider: Optional[str] = None,
 ) -> None:
     """
     Called as a background task after session ends.
     Scores the session and stores results in the scores table.
     Never raises — any failure is logged and swallowed.
+    preferred_provider: if set, try this provider first before falling back.
     """
     try:
         # Get org's LLM providers
@@ -230,10 +232,18 @@ async def score_session(
             spans=spans,
         )
 
-        # Try providers in priority order
+        # Build provider order: preferred first, then the standard priority chain
+        order = []
+        if preferred_provider and preferred_provider in CALLERS:
+            order.append(preferred_provider)
+        for p in PROVIDER_PRIORITY:
+            if p not in order:
+                order.append(p)
+
+        # Try providers in order
         scores_dict: Optional[dict] = None
         provider_used: str = ""
-        for provider_name in PROVIDER_PRIORITY:
+        for provider_name in order:
             api_key = providers.get(provider_name)
             if not api_key:
                 continue

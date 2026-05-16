@@ -54,6 +54,12 @@ export default function MetricsPage() {
     enabled: !!PROJECT_ID,
   });
 
+  const { data: qualityData } = useQuery({
+    queryKey: ["quality-over-time", PROJECT_ID],
+    queryFn: () => metricsApi.qualityOverTime(PROJECT_ID, "day"),
+    enabled: !!PROJECT_ID,
+  });
+
   const { data: tokenData } = useQuery<TokenStats>({
     queryKey: ["token-stats", PROJECT_ID],
     queryFn: () => metricsApi.tokenStats(PROJECT_ID),
@@ -215,6 +221,79 @@ export default function MetricsPage() {
     grid: { left: 60, right: 20, bottom: 30, top: 15 },
   };
 
+  const qualityChartOptions = {
+    ...CHART_THEME,
+    tooltip: {
+      trigger: "axis",
+      backgroundColor: "#18181b",
+      borderColor: "#27272a",
+      textStyle: { color: "#fafafa", fontSize: 12 },
+      formatter: (params: { name: string; value: number; seriesName: string }[]) => {
+        const lines = params.map(p => `${p.seriesName}: <b>${(p.value * 100).toFixed(0)}</b>`);
+        return `${params[0]?.name}<br/>${lines.join("<br/>")}`;
+      },
+    },
+    legend: {
+      data: ["Avg Quality", "Sessions"],
+      textStyle: { color: "#71717a", fontSize: 11 },
+      right: 0,
+    },
+    xAxis: {
+      type: "category",
+      data: qualityData?.series.map((b) => b.bucket.slice(0, 10)) ?? [],
+      axisLabel: { color: "#52525b", fontSize: 11 },
+      axisLine: { lineStyle: { color: "#27272a" } },
+      splitLine: { lineStyle: { color: "#1f1f23" } },
+    },
+    yAxis: [
+      {
+        type: "value",
+        name: "Quality (0–100)",
+        min: 0,
+        max: 100,
+        nameTextStyle: { color: "#52525b", fontSize: 10 },
+        axisLabel: { color: "#52525b", fontSize: 10, formatter: (v: number) => `${v}` },
+        splitLine: { lineStyle: { color: "#1f1f23" } },
+      },
+      {
+        type: "value",
+        name: "Sessions",
+        nameTextStyle: { color: "#52525b", fontSize: 10 },
+        axisLabel: { color: "#52525b", fontSize: 10 },
+        splitLine: { show: false },
+      },
+    ],
+    series: [
+      {
+        name: "Avg Quality",
+        type: "line",
+        data: qualityData?.series.map((b) => +(b.avg_quality * 100).toFixed(1)) ?? [],
+        lineStyle: { color: "#a78bfa", width: 2.5 },
+        itemStyle: { color: "#a78bfa" },
+        areaStyle: {
+          color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: "rgba(167,139,250,0.25)" },
+              { offset: 1, color: "rgba(167,139,250,0.02)" },
+            ],
+          },
+        },
+        symbol: "circle",
+        symbolSize: 6,
+        smooth: true,
+      },
+      {
+        name: "Sessions",
+        type: "bar",
+        yAxisIndex: 1,
+        data: qualityData?.series.map((b) => b.session_count) ?? [],
+        itemStyle: { color: "#3f3f46", borderRadius: [3, 3, 0, 0] },
+        barMaxWidth: 28,
+      },
+    ],
+    grid: { left: 55, right: 55, bottom: 35, top: 45 },
+  };
+
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
       <div>
@@ -231,6 +310,18 @@ export default function MetricsPage() {
           />
         ) : (
           <ReactECharts option={costChartOptions} style={{ height: 260 }} />
+        )}
+      </Card>
+
+      <Card title="Quality Score Trend" subtitle="Average AI quality score over time (0–100)">
+        {!qualityData?.series.length ? (
+          <EmptyState
+            icon={<BarChart2 />}
+            title="No quality scores yet"
+            description="Run AI scoring on sessions to see quality trends. Open any session → Scores → Run AI Score."
+          />
+        ) : (
+          <ReactECharts option={qualityChartOptions} style={{ height: 240 }} />
         )}
       </Card>
 
