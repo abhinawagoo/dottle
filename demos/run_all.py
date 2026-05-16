@@ -24,6 +24,7 @@ DEMOS = [
     ("05_document_processor.py","Intelligent Document Processing (AP Automation)"),
     ("06_loop_and_errors.py",   "Error Scenarios & Loop Detection"),
     ("07_multi_model_router.py","Multi-Model Routing (Cost & Quality)"),
+    ("08_behavioral_patterns.py","Behavioral Pattern Detection (Monitor Flags, Quality Scoring)"),
 ]
 
 BANNER = "=" * 60
@@ -54,8 +55,19 @@ print(BANNER)
 print("All demos complete!")
 print()
 print("Open https://app.dottle.dev/sessions to explore:")
-print("  - Green sessions = successful agent runs")
-print("  - Red sessions   = failed agents (errors captured)")
-print("  - Loop badges    = agents caught in retry cycles")
-print("  - Costs          = token costs per session and span")
+print("  - Green sessions  = successful agent runs")
+print("  - Red sessions    = failed agents (errors captured)")
+print("  - Loop badges     = agents caught in retry cycles")
+print("  - Costs           = token costs per session and span")
+print("  - Brain badges    = sessions with behavioral monitor flags")
+print("  - Monitor filter  = filter sessions by behavioral flag type")
+print("  - Quality scores  = AI-scored session quality (0–100)")
+print()
+print("For demo 08 behavioral flags, first create these monitors in")
+print("Settings → Monitors → Create:")
+print("  1. Hallucinating facts")
+print("  2. Refusing tasks")
+print("  3. Excessive apologies")
+print("  4. Off-topic responses")
+print("  5. Prompt injection detected")
 print(BANNER)

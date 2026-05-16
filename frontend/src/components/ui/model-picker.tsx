@@ -101,6 +101,19 @@ export const PROVIDER_META: Record<string, ProviderMeta> = {
   meta:      { label: "Meta",      color: "#0082FB1A", textColor: "#0082FB", Logo: MetaLogo      },
 };
 
+// ── Provider → model ID helper ─────────────────────────────────────────────
+
+/** Extracts the provider key from a full model ID (e.g. "claude-haiku-..." → "anthropic") */
+export function modelIdToProvider(modelId: string): string {
+  if (!modelId) return "";
+  if (modelId.startsWith("claude")) return "anthropic";
+  if (modelId.startsWith("gpt") || /^o[134]-/.test(modelId) || modelId.startsWith("chatgpt")) return "openai";
+  if (modelId.startsWith("gemini") || modelId.startsWith("gemma")) return "gemini";
+  if (modelId.startsWith("mistral") || modelId.startsWith("mixtral") || modelId.startsWith("open-mistral") || modelId.startsWith("open-mixtral")) return "mistral";
+  if (modelId.startsWith("llama") || modelId.startsWith("deepseek") || modelId.startsWith("qwen")) return "groq";
+  return "";
+}
+
 // ── API types ──────────────────────────────────────────────────────────────
 
 export interface ModelInfo { id: string; label: string; }

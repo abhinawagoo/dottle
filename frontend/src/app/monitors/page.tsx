@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { monitorsApi, aiProvidersApi } from "@/lib/api";
+import { ModelPicker, modelIdToProvider } from "@/components/ui/model-picker";
 import { useProject } from "@/lib/project-context";
 import { useOrg } from "@/lib/org-context";
 import { SemanticMonitor, MonitorEvent } from "@/lib/types";
@@ -14,14 +15,6 @@ import {
   Settings, ChevronRight, Cpu,
 } from "lucide-react";
 
-// ── Provider config ────────────────────────────────────────────────────────────
-const PROVIDERS = [
-  { value: "",           label: "Auto (use best available)" },
-  { value: "openai",     label: "OpenAI (GPT-4o mini)",       color: "text-green-500" },
-  { value: "anthropic",  label: "Anthropic (Claude Haiku)",    color: "text-orange-400" },
-  { value: "groq",       label: "Groq (Llama 3.1 8B)",        color: "text-purple-400" },
-  { value: "gemini",     label: "Google Gemini Flash",         color: "text-blue-400" },
-];
 
 const PROVIDER_BADGE: Record<string, { label: string; color: string; bg: string }> = {
   openai:    { label: "GPT-4o mini",    color: "text-green-600 dark:text-green-400",   bg: "bg-green-500/10 border-green-500/20" },
@@ -65,22 +58,21 @@ function NoProviderBanner() {
 // ── Create modal ───────────────────────────────────────────────────────────────
 function CreateMonitorModal({
   projectId,
-  configuredProviders,
   onClose,
 }: {
   projectId: string;
-  configuredProviders: string[];
   onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const [name, setName]                 = useState("");
-  const [desc, setDesc]                 = useState("");
-  const [pattern, setPattern]           = useState("");
-  const [threshold, setThreshold]       = useState(20);
-  const [window, setWindow]             = useState(60);
-  const [minSess, setMinSess]           = useState(5);
-  const [modelProvider, setModelProvider] = useState("");
-  const [error, setError]               = useState("");
+  const { selectedOrg } = useOrg();
+  const [name, setName]       = useState("");
+  const [desc, setDesc]       = useState("");
+  const [pattern, setPattern] = useState("");
+  const [threshold, setThreshold] = useState(20);
+  const [window, setWindow]   = useState(60);
+  const [minSess, setMinSess] = useState(5);
+  const [modelId, setModelId] = useState("");
+  const [error, setError]     = useState("");
 
   const create = useMutation({
     mutationFn: () => monitorsApi.create({
@@ -91,7 +83,7 @@ function CreateMonitorModal({
       threshold_pct:  threshold,
       window_minutes: window,
       min_sessions:   minSess,
-      model_provider: modelProvider || null,
+      model_provider: modelIdToProvider(modelId) || null,
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["monitors", projectId] }); onClose(); },
     onError: (e: unknown) => setError((e as Error).message),
@@ -148,28 +140,19 @@ function CreateMonitorModal({
             </p>
           </div>
 
-          {/* AI Provider selector */}
+          {/* AI model selector */}
           <div>
             <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide block mb-1.5 flex items-center gap-1.5">
               <Cpu className="w-3 h-3" /> AI model for evaluation
             </label>
-            <select
-              value={modelProvider}
-              onChange={e => setModelProvider(e.target.value)}
-              className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-[12px] text-ink-secondary focus:outline-none focus:border-brand-500/50"
-            >
-              {PROVIDERS.map(p => (
-                <option
-                  key={p.value}
-                  value={p.value}
-                  disabled={p.value !== "" && !configuredProviders.includes(p.value)}
-                >
-                  {p.label}{p.value !== "" && !configuredProviders.includes(p.value) ? " (not configured)" : ""}
-                </option>
-              ))}
-            </select>
+            <ModelPicker
+              orgId={selectedOrg?.id ?? null}
+              value={modelId}
+              onChange={setModelId}
+              placeholder="Auto (best available)"
+            />
             <p className="text-[10px] text-ink-dim mt-1">
-              Choose a specific model for precision, or "Auto" to use whichever provider is available.
+              Choose a specific model for precision, or leave blank to use whichever provider is available.
             </p>
           </div>
 
@@ -467,7 +450,6 @@ export default function MonitorsPage() {
       {showNew && (
         <CreateMonitorModal
           projectId={selectedProject.id}
-          configuredProviders={configuredProviders}
           onClose={() => setShowNew(false)}
         />
       )}

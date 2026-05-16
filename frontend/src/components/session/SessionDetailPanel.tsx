@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { sessionsApi, scoresApi, apiErrorMessage } from "@/lib/api";
+import { ModelPicker, modelIdToProvider } from "@/components/ui/model-picker";
+import { useOrg } from "@/lib/org-context";
 import { Score, BehaviorFlag } from "@/lib/types";
 import { Span, SessionIssue, IssueSeverity } from "@/lib/types";
 import { StatusBadge, LoopBadge, SpanTypeBadge } from "@/components/ui/Badge";
@@ -309,19 +311,13 @@ export interface SessionDetailPanelProps {
   hideExternalLink?: boolean;
 }
 
-const SCORING_PROVIDERS = [
-  { value: "openai",    label: "OpenAI GPT-4o mini" },
-  { value: "anthropic", label: "Anthropic Haiku" },
-  { value: "groq",      label: "Groq Llama 3" },
-  { value: "gemini",    label: "Gemini 1.5 Flash" },
-];
-
 export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetailPanelProps) {
   const [tab, setTab]           = useState<Tab>("overview");
   const [chatOpen, setChatOpen] = useState(false);
   const [rescoreMsg, setRescoreMsg] = useState<string | null>(null);
-  const [scoringProvider, setScoringProvider] = useState("");
+  const [scoringModel, setScoringModel] = useState("");
   const qc = useQueryClient();
+  const { selectedOrg } = useOrg();
   const isLive = (status: string) => status === "running" || status === "looping";
 
   const diagnoseMutation = useMutation({
@@ -329,7 +325,7 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
   });
 
   const rescoreMutation = useMutation({
-    mutationFn: () => sessionsApi.rescore(sessionId, scoringProvider || undefined),
+    mutationFn: () => sessionsApi.rescore(sessionId, modelIdToProvider(scoringModel) || undefined),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["scores", sessionId] });
       qc.invalidateQueries({ queryKey: ["session", sessionId] });
@@ -641,33 +637,33 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
                 ];
 
                 if (!overall) {
-                  // No score yet — show provider picker + trigger button
+                  // No score yet — show model picker + trigger button
                   return (
-                    <div className="rounded-xl border border-dark-border bg-dark-raised/40 px-4 py-3 flex items-center gap-2 flex-wrap">
-                      <Star className="w-3.5 h-3.5 text-ink-dim shrink-0" />
-                      <span className="text-[11px] text-ink-dim flex-1">No AI quality score yet.</span>
-                      <select
-                        value={scoringProvider}
-                        onChange={e => setScoringProvider(e.target.value)}
-                        className="input-dark h-6 text-[10px] pr-5"
-                        title="AI provider to use for scoring"
-                      >
-                        <option value="">Auto</option>
-                        {SCORING_PROVIDERS.map(p => (
-                          <option key={p.value} value={p.value}>{p.label}</option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => rescoreMutation.mutate()}
-                        disabled={rescoreMutation.isPending || !session || isLive(session.status)}
-                        className="flex items-center gap-1.5 text-[11px] text-brand-400 hover:text-brand-300 border border-brand-500/30 hover:border-brand-500/50 bg-brand-500/5 hover:bg-brand-500/10 rounded-lg px-3 py-1.5 transition-all disabled:opacity-40 font-medium"
-                        title={isLive(session?.status ?? "") ? "Wait for session to finish" : "Run AI quality scoring now"}
-                      >
-                        {rescoreMutation.isPending
-                          ? <><Loader2 className="w-3 h-3 animate-spin" /> Scoring…</>
-                          : <><Sparkles className="w-3 h-3" /> Run AI Score</>
-                        }
-                      </button>
+                    <div className="rounded-xl border border-dark-border bg-dark-raised/40 px-4 py-3 space-y-2.5">
+                      <div className="flex items-center gap-2">
+                        <Star className="w-3.5 h-3.5 text-ink-dim shrink-0" />
+                        <span className="text-[11px] text-ink-dim">No AI quality score yet.</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <ModelPicker
+                          orgId={selectedOrg?.id ?? null}
+                          value={scoringModel}
+                          onChange={setScoringModel}
+                          placeholder="Auto (best available)"
+                          className="flex-1"
+                        />
+                        <button
+                          onClick={() => rescoreMutation.mutate()}
+                          disabled={rescoreMutation.isPending || !session || isLive(session.status)}
+                          className="flex items-center gap-1.5 text-[11px] text-brand-400 hover:text-brand-300 border border-brand-500/30 hover:border-brand-500/50 bg-brand-500/5 hover:bg-brand-500/10 rounded-lg px-3 py-2 transition-all disabled:opacity-40 font-medium shrink-0"
+                          title={isLive(session?.status ?? "") ? "Wait for session to finish" : "Run AI quality scoring now"}
+                        >
+                          {rescoreMutation.isPending
+                            ? <><Loader2 className="w-3 h-3 animate-spin" /> Scoring…</>
+                            : <><Sparkles className="w-3 h-3" /> Run AI Score</>
+                          }
+                        </button>
+                      </div>
                     </div>
                   );
                 }
@@ -685,27 +681,24 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
                         {Math.round(score * 100)}
                         <span className="text-sm font-normal text-ink-dim">/100</span>
                       </span>
-                      <select
-                        value={scoringProvider}
-                        onChange={e => setScoringProvider(e.target.value)}
-                        className="input-dark h-5 text-[9px] pr-4 ml-2"
-                        title="AI provider for re-scoring"
-                      >
-                        <option value="">Auto</option>
-                        {SCORING_PROVIDERS.map(p => (
-                          <option key={p.value} value={p.value}>{p.label}</option>
-                        ))}
-                      </select>
                       <button
                         onClick={() => rescoreMutation.mutate()}
                         disabled={rescoreMutation.isPending}
-                        className="flex items-center gap-1 text-[10px] text-ink-dim hover:text-ink-muted border border-dark-border rounded px-2 h-5 transition-colors disabled:opacity-40"
+                        className="flex items-center gap-1.5 text-[10px] text-ink-dim hover:text-ink-muted border border-dark-border rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-40"
                         title="Re-run AI quality scoring"
                       >
                         {rescoreMutation.isPending
-                          ? <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                          : <RotateCcw className="w-2.5 h-2.5" />}
+                          ? <><Loader2 className="w-2.5 h-2.5 animate-spin" /> Scoring…</>
+                          : <><RotateCcw className="w-2.5 h-2.5" /> Re-score</>}
                       </button>
+                    </div>
+                    <div className="px-4 pt-3 pb-1">
+                      <ModelPicker
+                        orgId={selectedOrg?.id ?? null}
+                        value={scoringModel}
+                        onChange={setScoringModel}
+                        placeholder="Auto (best available)"
+                      />
                     </div>
                     <div className="px-4 py-3 space-y-2">
                       {dims.map(({ label, v }) => v != null && (

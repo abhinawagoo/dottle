@@ -2,7 +2,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { sessionsApi, scoresApi, datasetsApi, playgroundApi, apiErrorMessage } from "@/lib/api";
-import { ModelPicker } from "@/components/ui/model-picker";
+import { ModelPicker, modelIdToProvider } from "@/components/ui/model-picker";
 import { Span, SessionIssue, IssueSeverity, DatasetSummary } from "@/lib/types";
 import { StatusBadge, LoopBadge, SpanTypeBadge } from "@/components/ui/Badge";
 import { Card, StatCard } from "@/components/ui/Card";
@@ -185,19 +185,13 @@ function SpanRow({ span }: { span: Span }) {
   );
 }
 
-const PROVIDERS = [
-  { value: "openai",    label: "OpenAI GPT-4o mini" },
-  { value: "anthropic", label: "Anthropic Haiku" },
-  { value: "groq",      label: "Groq Llama 3" },
-  { value: "gemini",    label: "Gemini 1.5 Flash" },
-];
-
 /* ── Score panel ───────────────────────────────────────────────────────────── */
 function ScorePanel({ sessionId, projectId }: { sessionId: string; projectId: string }) {
   const qc = useQueryClient();
+  const { selectedOrg } = useOrg();
   const [comment, setComment] = useState("");
   const [rescoreMsg, setRescoreMsg] = useState<string | null>(null);
-  const [scoringProvider, setScoringProvider] = useState("");
+  const [scoringModel, setScoringModel] = useState("");
 
   const { data: scores = [] } = useQuery({
     queryKey: ["scores", sessionId],
@@ -217,7 +211,7 @@ function ScorePanel({ sessionId, projectId }: { sessionId: string; projectId: st
   });
 
   const rescore = useMutation({
-    mutationFn: () => sessionsApi.rescore(sessionId, scoringProvider || undefined),
+    mutationFn: () => sessionsApi.rescore(sessionId, modelIdToProvider(scoringModel) || undefined),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["scores", sessionId] });
       qc.invalidateQueries({ queryKey: ["session", sessionId] });
@@ -276,28 +270,27 @@ function ScorePanel({ sessionId, projectId }: { sessionId: string; projectId: st
         {/* AI evaluator scores */}
         {modelScores.length > 0 && (
           <div>
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <p className="text-[10px] font-semibold text-ink-dim uppercase tracking-wide flex-1">AI Evaluators</p>
-              <select
-                value={scoringProvider}
-                onChange={e => setScoringProvider(e.target.value)}
-                className="input-dark h-5 text-[10px] pr-5"
-                title="AI provider to use for scoring"
-              >
-                <option value="">Auto (best available)</option>
-                {PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-              </select>
-              <button
-                onClick={() => rescore.mutate()}
-                disabled={rescore.isPending}
-                className="flex items-center gap-1 text-[10px] text-ink-dim hover:text-ink-muted border border-dark-border rounded px-2 h-5 transition-colors disabled:opacity-40"
-                title="Re-run AI quality scoring"
-              >
-                {rescore.isPending
-                  ? <><Loader2 className="w-2.5 h-2.5 animate-spin" /> Scoring…</>
-                  : <><RotateCcw className="w-2.5 h-2.5" /> Re-score</>
-                }
-              </button>
+            <div className="space-y-2 mb-3">
+              <div className="flex items-center gap-2">
+                <p className="text-[10px] font-semibold text-ink-dim uppercase tracking-wide flex-1">AI Evaluators</p>
+                <button
+                  onClick={() => rescore.mutate()}
+                  disabled={rescore.isPending}
+                  className="flex items-center gap-1.5 text-[11px] text-ink-dim hover:text-ink-muted border border-dark-border rounded-lg px-2.5 py-1 transition-colors disabled:opacity-40"
+                  title="Re-run AI quality scoring"
+                >
+                  {rescore.isPending
+                    ? <><Loader2 className="w-3 h-3 animate-spin" /> Scoring…</>
+                    : <><RotateCcw className="w-3 h-3" /> Re-score</>
+                  }
+                </button>
+              </div>
+              <ModelPicker
+                orgId={selectedOrg?.id ?? null}
+                value={scoringModel}
+                onChange={setScoringModel}
+                placeholder="Auto (best available)"
+              />
             </div>
             <div className="flex flex-wrap gap-2">
               {modelScores.map(s => (
@@ -313,34 +306,34 @@ function ScorePanel({ sessionId, projectId }: { sessionId: string; projectId: st
           </div>
         )}
 
-        {/* No scores yet — show provider picker + trigger button */}
+        {/* No scores yet — show model picker + trigger button */}
         {!hasAutoScores && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-[11px] text-ink-dim flex-1">
+          <div className="space-y-2">
+            <p className="text-[11px] text-ink-dim">
               {scores.length === 0
                 ? "No scores yet. Rate above or run AI scoring."
                 : "No AI evaluator scores yet."}
             </p>
-            <select
-              value={scoringProvider}
-              onChange={e => setScoringProvider(e.target.value)}
-              className="input-dark h-7 text-[11px] pr-6"
-              title="AI provider to use for scoring"
-            >
-              <option value="">Auto (best available)</option>
-              {PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-            </select>
-            <button
-              onClick={() => rescore.mutate()}
-              disabled={rescore.isPending}
-              className="flex items-center gap-1.5 text-[11px] text-brand-400 hover:text-brand-300 border border-brand-500/30 hover:border-brand-500/50 bg-brand-500/5 hover:bg-brand-500/10 rounded-lg px-3 py-1.5 transition-all disabled:opacity-40 font-medium"
-              title="Run AI quality scoring now"
-            >
-              {rescore.isPending
-                ? <><Loader2 className="w-3 h-3 animate-spin" /> Scoring…</>
-                : <><Sparkles className="w-3 h-3" /> Run AI Score</>
-              }
-            </button>
+            <div className="flex items-center gap-2">
+              <ModelPicker
+                orgId={selectedOrg?.id ?? null}
+                value={scoringModel}
+                onChange={setScoringModel}
+                placeholder="Auto (best available)"
+                className="flex-1"
+              />
+              <button
+                onClick={() => rescore.mutate()}
+                disabled={rescore.isPending}
+                className="flex items-center gap-1.5 text-[13px] text-brand-400 hover:text-brand-300 border border-brand-500/30 hover:border-brand-500/50 bg-brand-500/5 hover:bg-brand-500/10 rounded-lg px-4 py-2 transition-all disabled:opacity-40 font-medium shrink-0"
+                title="Run AI quality scoring now"
+              >
+                {rescore.isPending
+                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Scoring…</>
+                  : <><Sparkles className="w-3.5 h-3.5" /> Run AI Score</>
+                }
+              </button>
+            </div>
           </div>
         )}
 
