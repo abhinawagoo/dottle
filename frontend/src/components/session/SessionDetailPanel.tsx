@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { sessionsApi, scoresApi } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { sessionsApi, scoresApi, apiErrorMessage } from "@/lib/api";
 import { Score, BehaviorFlag } from "@/lib/types";
 import { Span, SessionIssue, IssueSeverity } from "@/lib/types";
 import { StatusBadge, LoopBadge, SpanTypeBadge } from "@/components/ui/Badge";
@@ -15,7 +15,7 @@ import {
   Radio, ShieldAlert, AlertCircle, Info, TrendingUp, Zap, Tag,
   User, FlaskConical, Sparkles, ExternalLink, MessageSquare,
   Stethoscope, CheckCircle2, Loader2, ChevronUp, GitBranch, GitCommit,
-  Star, Cpu, Brain,
+  Star, Cpu, Brain, RotateCcw,
 } from "lucide-react";
 
 /* ── helpers ─────────────────────────────────────────────────────────────────── */
@@ -312,10 +312,26 @@ export interface SessionDetailPanelProps {
 export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetailPanelProps) {
   const [tab, setTab]           = useState<Tab>("overview");
   const [chatOpen, setChatOpen] = useState(false);
+  const [rescoreMsg, setRescoreMsg] = useState<string | null>(null);
+  const qc = useQueryClient();
   const isLive = (status: string) => status === "running" || status === "looping";
 
   const diagnoseMutation = useMutation({
     mutationFn: () => sessionsApi.diagnose(sessionId),
+  });
+
+  const rescoreMutation = useMutation({
+    mutationFn: () => sessionsApi.rescore(sessionId),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["scores", sessionId] });
+      qc.invalidateQueries({ queryKey: ["session", sessionId] });
+      setRescoreMsg(data.message);
+      setTimeout(() => setRescoreMsg(null), 4000);
+    },
+    onError: (e) => {
+      setRescoreMsg(apiErrorMessage(e));
+      setTimeout(() => setRescoreMsg(null), 4000);
+    },
   });
 
   const { data: session, isLoading } = useQuery({
@@ -610,17 +626,37 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
                 const taskComp  = scores.find(s => s.name === "auto_task_completion");
                 const coherence = scores.find(s => s.name === "auto_coherence");
                 const efficiency= scores.find(s => s.name === "auto_efficiency");
-                if (!overall) return null;
-                const score = overall.value;
-                const color = score >= 0.8 ? "text-green-600 dark:text-green-400"
-                            : score >= 0.5 ? "text-amber-600 dark:text-amber-400"
-                            : "text-red-600 dark:text-red-400";
-                const barColor = score >= 0.8 ? "bg-green-500" : score >= 0.5 ? "bg-amber-500" : "bg-red-500";
                 const dims = [
                   { label: "Task completion", v: taskComp?.value },
                   { label: "Coherence",       v: coherence?.value },
                   { label: "Efficiency",      v: efficiency?.value },
                 ];
+
+                if (!overall) {
+                  // No score yet — show prompt to run scoring
+                  return (
+                    <div className="rounded-xl border border-dark-border bg-dark-raised/40 px-4 py-3 flex items-center gap-3">
+                      <Star className="w-3.5 h-3.5 text-ink-dim shrink-0" />
+                      <span className="text-[11px] text-ink-dim flex-1">No AI quality score yet.</span>
+                      <button
+                        onClick={() => rescoreMutation.mutate()}
+                        disabled={rescoreMutation.isPending || !session || isLive(session.status)}
+                        className="flex items-center gap-1.5 text-[11px] text-brand-400 hover:text-brand-300 border border-brand-500/30 hover:border-brand-500/50 bg-brand-500/5 hover:bg-brand-500/10 rounded-lg px-3 py-1.5 transition-all disabled:opacity-40 font-medium"
+                        title={isLive(session?.status ?? "") ? "Wait for session to finish" : "Run AI quality scoring now"}
+                      >
+                        {rescoreMutation.isPending
+                          ? <><Loader2 className="w-3 h-3 animate-spin" /> Scoring…</>
+                          : <><Sparkles className="w-3 h-3" /> Run AI Score</>
+                        }
+                      </button>
+                    </div>
+                  );
+                }
+
+                const score = overall.value;
+                const color = score >= 0.8 ? "text-green-600 dark:text-green-400"
+                            : score >= 0.5 ? "text-amber-600 dark:text-amber-400"
+                            : "text-red-600 dark:text-red-400";
                 return (
                   <div className="rounded-xl border border-dark-border bg-dark-raised/40 overflow-hidden">
                     <div className="flex items-center gap-3 px-4 py-3 border-b border-dark-border">
@@ -630,6 +666,16 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
                         {Math.round(score * 100)}
                         <span className="text-sm font-normal text-ink-dim">/100</span>
                       </span>
+                      <button
+                        onClick={() => rescoreMutation.mutate()}
+                        disabled={rescoreMutation.isPending}
+                        className="flex items-center gap-1 text-[10px] text-ink-dim hover:text-ink-muted border border-dark-border rounded px-2 h-5 transition-colors disabled:opacity-40"
+                        title="Re-run AI quality scoring"
+                      >
+                        {rescoreMutation.isPending
+                          ? <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                          : <RotateCcw className="w-2.5 h-2.5" />}
+                      </button>
                     </div>
                     <div className="px-4 py-3 space-y-2">
                       {dims.map(({ label, v }) => v != null && (
@@ -655,6 +701,13 @@ export function SessionDetailPanel({ sessionId, hideExternalLink }: SessionDetai
                   </div>
                 );
               })()}
+
+              {/* Rescore feedback toast */}
+              {rescoreMsg && (
+                <p className="text-[11px] text-green-400 bg-green-500/5 border border-green-500/20 rounded-lg px-3 py-2">
+                  {rescoreMsg}
+                </p>
+              )}
 
               {/* ── Token efficiency ── */}
               {(() => {

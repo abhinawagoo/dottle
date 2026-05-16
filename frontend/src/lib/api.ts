@@ -282,6 +282,9 @@ export const sessionsApi = {
 
   behaviors: (sessionId: string): Promise<import("./types").BehaviorFlag[]> =>
     api.get(`/sessions/${sessionId}/behaviors`).then(r => r.data),
+
+  rescore: (sessionId: string): Promise<{ ok: boolean; message: string }> =>
+    api.post(`/sessions/${sessionId}/rescore`).then(r => r.data),
 };
 
 // ── Metrics ──────────────────────────────────────────────────────────────────

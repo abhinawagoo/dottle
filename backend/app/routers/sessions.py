@@ -10,17 +10,19 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, delete as sa_delete
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.database import get_db, AsyncSessionLocal
 from app.models.session import AgentSession
 from app.models.span import Span
 from app.models.issue import SessionIssue
 from app.models.score import Score
+from app.models.project import Project
 from app.models.semantic_monitor import MonitorSessionFlag, SemanticMonitor
 from app.schemas.session import SessionResponse, SessionDetailResponse, SessionListResponse, SpanResponse, IssueResponse
+from app.services.auto_quality import score_session
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -833,3 +835,88 @@ async def get_session_behaviors(
         )
         for row in rows
     ]
+
+
+# ── Re-score ──────────────────────────────────────────────────────────────────
+
+class RescoreResponse(BaseModel):
+    ok: bool
+    message: str
+
+
+@router.post("/{session_id}/rescore", response_model=RescoreResponse)
+async def rescore_session(
+    session_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete existing auto_quality scores and re-run quality scoring for the session."""
+    # Load session + project
+    sess_result = await db.execute(
+        select(AgentSession).where(AgentSession.id == session_id)
+    )
+    session = sess_result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.status not in ("completed", "failed", "timed_out", "timeout", "looping"):
+        raise HTTPException(status_code=400, detail="Session is still running — wait until it finishes")
+
+    proj_result = await db.execute(
+        select(Project).where(Project.id == session.project_id)
+    )
+    project = proj_result.scalar_one_or_none()
+    if not project or not project.org_id:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Load spans
+    span_result = await db.execute(
+        select(Span)
+        .where(Span.session_id == session_id)
+        .order_by(Span.started_at)
+    )
+    spans = span_result.scalars().all()
+    span_dicts = [
+        {
+            "id": str(sp.id),
+            "span_type": sp.span_type,
+            "name": sp.name,
+            "status": sp.status,
+            "duration_ms": sp.duration_ms,
+            "input_tokens": sp.input_tokens,
+            "output_tokens": sp.output_tokens,
+            "input_text": sp.input_text,
+            "output_text": sp.output_text,
+            "error_message": sp.error_message,
+            "error_type": sp.error_type,
+        }
+        for sp in spans
+    ]
+
+    # Delete old auto_quality scores so we don't accumulate duplicates
+    await db.execute(
+        sa_delete(Score).where(
+            Score.session_id == session_id,
+            Score.name.in_(["auto_quality", "auto_task_completion", "auto_coherence", "auto_efficiency"]),
+        )
+    )
+    await db.commit()
+
+    # Run scoring in a fresh session (same pattern as ingest fire-and-forget,
+    # but here we await it so the caller knows when it's done)
+    async with AsyncSessionLocal() as bg_db:
+        await score_session(
+            session_id=session.id,
+            project_id=session.project_id,
+            org_id=project.org_id,
+            agent_name=session.agent_name,
+            status=session.status,
+            duration_ms=session.duration_ms,
+            total_tokens=session.total_tokens,
+            iteration_count=session.iteration_count,
+            loop_detected=session.loop_detected,
+            error_message=session.error_message,
+            spans=span_dicts,
+            db=bg_db,
+        )
+
+    return RescoreResponse(ok=True, message="Quality scores updated")

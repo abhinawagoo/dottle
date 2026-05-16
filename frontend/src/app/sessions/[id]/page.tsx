@@ -3,7 +3,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { sessionsApi, scoresApi, datasetsApi, playgroundApi, apiErrorMessage } from "@/lib/api";
 import { ModelPicker } from "@/components/ui/model-picker";
-import { Span, SessionIssue, IssueSeverity, Score, DatasetSummary } from "@/lib/types";
+import { Span, SessionIssue, IssueSeverity, DatasetSummary } from "@/lib/types";
 import { StatusBadge, LoopBadge, SpanTypeBadge } from "@/components/ui/Badge";
 import { Card, StatCard } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -189,6 +189,7 @@ function SpanRow({ span }: { span: Span }) {
 function ScorePanel({ sessionId, projectId }: { sessionId: string; projectId: string }) {
   const qc = useQueryClient();
   const [comment, setComment] = useState("");
+  const [rescoreMsg, setRescoreMsg] = useState<string | null>(null);
 
   const { data: scores = [] } = useQuery({
     queryKey: ["scores", sessionId],
@@ -207,9 +208,24 @@ function ScorePanel({ sessionId, projectId }: { sessionId: string; projectId: st
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["scores", sessionId] }); setComment(""); },
   });
 
+  const rescore = useMutation({
+    mutationFn: () => sessionsApi.rescore(sessionId),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["scores", sessionId] });
+      qc.invalidateQueries({ queryKey: ["session", sessionId] });
+      setRescoreMsg(data.message);
+      setTimeout(() => setRescoreMsg(null), 4000);
+    },
+    onError: (e) => {
+      setRescoreMsg(apiErrorMessage(e));
+      setTimeout(() => setRescoreMsg(null), 4000);
+    },
+  });
+
   const thumbsUp = scores.filter(s => s.name === "quality" && s.value > 0);
   const thumbsDown = scores.filter(s => s.name === "quality" && s.value < 0);
   const modelScores = scores.filter(s => s.source === "model");
+  const hasAutoScores = modelScores.some(s => s.name === "auto_quality");
 
   return (
     <Card title={<span className="flex items-center gap-2"><ThumbsUp className="w-3.5 h-3.5 text-green-400" />Scores</span>}
@@ -252,7 +268,20 @@ function ScorePanel({ sessionId, projectId }: { sessionId: string; projectId: st
         {/* AI evaluator scores */}
         {modelScores.length > 0 && (
           <div>
-            <p className="text-[10px] font-semibold text-ink-dim uppercase tracking-wide mb-2">AI Evaluators</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-semibold text-ink-dim uppercase tracking-wide">AI Evaluators</p>
+              <button
+                onClick={() => rescore.mutate()}
+                disabled={rescore.isPending}
+                className="flex items-center gap-1 text-[10px] text-ink-dim hover:text-ink-muted border border-dark-border rounded px-2 h-5 transition-colors disabled:opacity-40"
+                title="Re-run AI quality scoring"
+              >
+                {rescore.isPending
+                  ? <><Loader2 className="w-2.5 h-2.5 animate-spin" /> Scoring…</>
+                  : <><RotateCcw className="w-2.5 h-2.5" /> Re-score</>
+                }
+              </button>
+            </div>
             <div className="flex flex-wrap gap-2">
               {modelScores.map(s => (
                 <div key={s.id} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-dark-raised border border-dark-border">
@@ -267,8 +296,33 @@ function ScorePanel({ sessionId, projectId }: { sessionId: string; projectId: st
           </div>
         )}
 
-        {scores.length === 0 && (
-          <p className="text-[11px] text-ink-dim">No scores yet. Rate this session or set up LLM evaluators in the Evals tab.</p>
+        {/* No scores yet — show Re-score button to trigger on demand */}
+        {!hasAutoScores && (
+          <div className="flex items-center gap-3">
+            <p className="text-[11px] text-ink-dim flex-1">
+              {scores.length === 0
+                ? "No scores yet. Rate above or run AI scoring."
+                : "No AI evaluator scores yet."}
+            </p>
+            <button
+              onClick={() => rescore.mutate()}
+              disabled={rescore.isPending}
+              className="flex items-center gap-1.5 text-[11px] text-brand-400 hover:text-brand-300 border border-brand-500/30 hover:border-brand-500/50 bg-brand-500/5 hover:bg-brand-500/10 rounded-lg px-3 py-1.5 transition-all disabled:opacity-40 font-medium"
+              title="Run AI quality scoring now"
+            >
+              {rescore.isPending
+                ? <><Loader2 className="w-3 h-3 animate-spin" /> Scoring…</>
+                : <><Sparkles className="w-3 h-3" /> Run AI Score</>
+              }
+            </button>
+          </div>
+        )}
+
+        {/* Feedback toast */}
+        {rescoreMsg && (
+          <p className="text-[11px] text-green-400 bg-green-500/5 border border-green-500/20 rounded-lg px-3 py-2">
+            {rescoreMsg}
+          </p>
         )}
       </div>
     </Card>
