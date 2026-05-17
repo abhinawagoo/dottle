@@ -32,8 +32,15 @@ async def get_summary(
     to: datetime | None = None,
     db: AsyncSession = Depends(get_db),
 ):
+    from app.services.cache import cache_get, cache_set
+
     from_ = from_ or _default_from()
     to = to or datetime.now(timezone.utc)
+
+    cache_key = f"metrics:{project_id}:summary:{from_.isoformat()}:{to.isoformat()}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return MetricsSummary(**cached)
 
     conditions = [
         AgentSession.project_id == project_id,
@@ -101,7 +108,7 @@ async def get_summary(
     scored_count = int(quality_row.scored_count or 0)
 
     total = row.total or 0
-    return MetricsSummary(
+    summary = MetricsSummary(
         total_sessions=total,
         total_cost_usd=float(row.total_cost or 0),
         avg_cost_per_session=float(row.avg_cost or 0),
@@ -114,6 +121,8 @@ async def get_summary(
         avg_quality_score=round(avg_quality, 3) if avg_quality is not None else None,
         scored_session_count=scored_count,
     )
+    await cache_set(cache_key, summary.model_dump(), ttl=60)
+    return summary
 
 
 @router.get("/cost-over-time", response_model=CostOverTimeResponse)

@@ -45,6 +45,16 @@ async def list_sessions(
     page_size: int = 50,
     db: AsyncSession = Depends(get_db),
 ):
+    import hashlib as _hashlib
+    from app.services.cache import cache_get, cache_set
+
+    # Build a stable cache key from all filter params
+    _filter_str = f"{status}|{agent_name}|{search}|{loop_detected}|{user_id}|{user_email}|{agent_version}|{tag}|{monitor_id}|{from_}|{to}|{page}|{page_size}"
+    _filter_hash = _hashlib.md5(_filter_str.encode()).hexdigest()[:12]
+    _cache_key = f"sessions_list:{project_id}:{_filter_hash}"
+    _cached = await cache_get(_cache_key)
+    if _cached is not None:
+        return SessionListResponse(**_cached)
     from sqlalchemy import cast
     from sqlalchemy.dialects.postgresql import ARRAY, TEXT
 
@@ -133,7 +143,7 @@ async def list_sessions(
         for row in bf_result:
             behavior_flags.setdefault(row.session_id, []).append(row.name)
 
-    return SessionListResponse(
+    response = SessionListResponse(
         total=total,
         page=page,
         page_size=page_size,
@@ -147,6 +157,8 @@ async def list_sessions(
             for s in sessions
         ],
     )
+    await cache_set(_cache_key, response.model_dump(), ttl=15)
+    return response
 
 
 @router.get("/export")

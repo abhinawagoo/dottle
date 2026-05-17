@@ -24,6 +24,7 @@ from app.services.loop_detector import analyze_spans
 from app.services.issue_detector import detect_all, SessionSnapshot
 from app.models.issue import SessionIssue
 from app.services.auto_quality import score_session
+from app.services.cache import cache_delete_pattern
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -160,6 +161,17 @@ async def end_session(
         spans=span_dicts,
     ))
 
+    # Fire-and-forget: run all active LLM evaluator configs for this project.
+    asyncio.ensure_future(_bg_trigger_evals(
+        session_id=str(session.id),
+        project_id=str(session.project_id),
+    ))
+
+    # Invalidate sessions-list and metrics cache for this project so
+    # the dashboard reflects the new session immediately.
+    asyncio.ensure_future(cache_delete_pattern(f"sessions_list:{session.project_id}:*"))
+    asyncio.ensure_future(cache_delete_pattern(f"metrics:{session.project_id}:*"))
+
     return {"ok": True, "issues_detected": len(issues)}
 
 
@@ -167,6 +179,12 @@ async def _bg_score_session(**kwargs) -> None:
     """Runs auto quality scoring in its own AsyncSession so failures are isolated."""
     async with AsyncSessionLocal() as bg_db:
         await score_session(db=bg_db, **kwargs)
+
+
+async def _bg_trigger_evals(session_id: str, project_id: str) -> None:
+    """Runs all active LLM evaluator configs for a completed session."""
+    from app.routers.evals import _run_evals_for_session
+    await _run_evals_for_session(session_id=session_id, project_id=project_id)
 
 
 @router.post("/spans", status_code=status.HTTP_202_ACCEPTED)

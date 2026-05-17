@@ -30,6 +30,7 @@ from app.database import get_db, AsyncSessionLocal
 from app.models.dataset import Dataset, DatasetItem, DatasetRun
 from app.models.session import AgentSession
 from app.models.span import Span
+from app.models.project import Project
 from app.routers.auth import get_current_user
 from app.models.user import User
 from app.config import get_settings
@@ -108,6 +109,8 @@ def _run_out(r: DatasetRun) -> dict:
 
 async def _execute_dataset_run(run_id: str, eval_criteria: Optional[str]) -> None:
     """Score every item in the dataset using LLM-as-judge."""
+    from app.services.cache import get_ai_provider_key
+
     async with AsyncSessionLocal() as db:
         run_r = await db.execute(select(DatasetRun).where(DatasetRun.id == uuid.UUID(run_id)))
         run = run_r.scalar_one_or_none()
@@ -117,11 +120,28 @@ async def _execute_dataset_run(run_id: str, eval_criteria: Optional[str]) -> Non
         run.status = "running"
         await db.commit()
 
+        # Resolve org API key — prefer org's configured Anthropic key, fall back to env
+        proj_r = await db.execute(select(Project).where(Project.id == run.project_id))
+        proj = proj_r.scalar_one_or_none()
+        org_id = str(proj.org_id) if proj else None
+
+        api_key = None
+        if org_id:
+            api_key = await get_ai_provider_key(org_id, "anthropic")
+        if not api_key:
+            api_key = settings.anthropic_api_key
+        if not api_key:
+            run.status = "failed"
+            await db.commit()
+            logger.error("dataset_run_no_api_key", run_id=run_id)
+            return
+
         items_r = await db.execute(
             select(DatasetItem).where(DatasetItem.dataset_id == run.dataset_id)
         )
         items = items_r.scalars().all()
 
+        eval_model = run.model or "claude-haiku-4-5-20251001"
         criteria = eval_criteria or "Evaluate the quality, accuracy and helpfulness of the agent's response. Rate 0-1."
         results = []
         scores = []
@@ -139,31 +159,32 @@ async def _execute_dataset_run(run_id: str, eval_criteria: Optional[str]) -> Non
                     for s in spans
                 )
 
+            input_str = json.dumps(item.input) if item.input else "(no input)"
             system = f"""You are an evaluator. {criteria}
 Return JSON only: {{"score": <0-1>, "reasoning": "<one sentence>"}}"""
 
-            user_msg = f"""Input: {item.input}
+            user_msg = f"""Input: {input_str}
 Expected output: {item.expected_output or "(none)"}
-Actual context/output: {context or str(item.input)}"""
+Actual context/output: {context or input_str}"""
 
             try:
                 async with httpx.AsyncClient(timeout=30) as client:
                     resp = await client.post(
                         "https://api.anthropic.com/v1/messages",
                         headers={
-                            "x-api-key": settings.anthropic_api_key,
+                            "x-api-key": api_key,
                             "anthropic-version": "2023-06-01",
                             "content-type": "application/json",
                         },
                         json={
-                            "model": run.model or "claude-haiku-4-5-20251001",
+                            "model": eval_model,
                             "max_tokens": 200,
                             "system": system,
                             "messages": [{"role": "user", "content": user_msg}],
                         },
                     )
+                resp.raise_for_status()
 
-                import json
                 text = resp.json()["content"][0]["text"].strip()
                 if text.startswith("```"):
                     text = text.split("```")[1]
@@ -180,6 +201,7 @@ Actual context/output: {context or str(item.input)}"""
                     "status": "completed",
                 })
             except Exception as e:
+                logger.warning("dataset_item_score_failed", run_id=run_id, item_id=str(item.id), error=str(e))
                 results.append({
                     "item_id": str(item.id),
                     "session_id": str(item.session_id) if item.session_id else None,

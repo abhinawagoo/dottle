@@ -216,6 +216,7 @@ async def create_eval_config(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
+    from app.services.cache import cache_delete
     config = EvalConfig(
         project_id=uuid.UUID(body.project_id),
         name=body.name,
@@ -232,6 +233,7 @@ async def create_eval_config(
     db.add(config)
     await db.commit()
     await db.refresh(config)
+    await cache_delete(f"eval_configs:{body.project_id}")
     return _config_out(config)
 
 
@@ -256,6 +258,7 @@ async def update_eval_config(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
+    from app.services.cache import cache_delete
     result = await db.execute(select(EvalConfig).where(EvalConfig.id == uuid.UUID(config_id)))
     config = result.scalar_one_or_none()
     if not config:
@@ -264,6 +267,7 @@ async def update_eval_config(
         setattr(config, field, val)
     config.updated_at = datetime.now(timezone.utc)
     await db.commit()
+    await cache_delete(f"eval_configs:{config.project_id}")
     return _config_out(config)
 
 
@@ -273,12 +277,15 @@ async def delete_eval_config(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
+    from app.services.cache import cache_delete
     result = await db.execute(select(EvalConfig).where(EvalConfig.id == uuid.UUID(config_id)))
     config = result.scalar_one_or_none()
     if not config:
         raise HTTPException(404, "Eval config not found")
+    project_id = str(config.project_id)
     await db.delete(config)
     await db.commit()
+    await cache_delete(f"eval_configs:{project_id}")
 
 
 @router.post("/configs/{config_id}/run/{session_id}", status_code=202)
@@ -313,8 +320,50 @@ async def list_eval_results(
 
 # ── Hook: run active evals when a session completes ───────────────────────────
 
+async def _run_evals_for_session(session_id: str, project_id: str) -> None:
+    """
+    Fire-and-forget coroutine — runs all active eval configs for a project
+    against the given session. Each eval runs in its own isolated async context.
+    Called from ingest.py via asyncio.ensure_future.
+    """
+    from app.services.cache import cache_get, cache_set
+    import json as _json
+
+    cache_key = f"eval_configs:{project_id}"
+    cached = await cache_get(cache_key)
+
+    if cached is not None:
+        configs_data = cached
+    else:
+        async with AsyncSessionLocal() as db:
+            configs_r = await db.execute(
+                select(EvalConfig).where(
+                    EvalConfig.project_id == uuid.UUID(project_id),
+                    EvalConfig.active == True,
+                )
+            )
+            raw = configs_r.scalars().all()
+            configs_data = [
+                {"id": str(c.id), "run_on": c.run_on, "sample_rate": c.sample_rate}
+                for c in raw
+            ]
+        await cache_set(cache_key, configs_data, ttl=60)
+
+    for cfg in configs_data:
+        if cfg["run_on"] == "sample" and random.random() > cfg["sample_rate"]:
+            continue
+        try:
+            await _run_eval_for_session(cfg["id"], session_id)
+        except Exception as exc:
+            logger.warning("eval_trigger_failed config=%s session=%s err=%s",
+                           cfg["id"], session_id, exc)
+
+
 async def trigger_evals_for_session(session_id: str, project_id: str, background_tasks: BackgroundTasks):
-    """Called from the ingest router when a session transitions to completed/failed."""
+    """
+    BackgroundTasks-based trigger (used by manual API routes).
+    For automatic triggering from ingest, use _run_evals_for_session directly.
+    """
     async with AsyncSessionLocal() as db:
         configs_r = await db.execute(
             select(EvalConfig).where(

@@ -14,7 +14,7 @@ import os, sys
 sys.path.insert(0, "../sdk")
 import dottle
 
-DOTTLE_API_KEY = os.environ.get("DOTTLE_API_KEY", "dtl_live_6k8VndaI6E6NjgBNQarbDNvQjGaJxfs29vDE_jvqCUY")
+DOTTLE_API_KEY = os.environ.get("DOTTLE_API_KEY", "dtl_live_P6aMoyfqWR1WadGgPTzbeDA_bsI_uVb_ZF44gpZlRNE")
 
 dottle.configure(
     api_key=DOTTLE_API_KEY,

@@ -328,15 +328,10 @@ async def _run_experiment(experiment_id: str, project_id: str):
             async def get_key(model: str) -> str:
                 provider = MODEL_TO_PROVIDER.get(model, "anthropic")
                 if org_id:
-                    r = await db.execute(
-                        select(OrgAIProvider).where(
-                            OrgAIProvider.org_id == org_id,
-                            OrgAIProvider.provider == provider,
-                        )
-                    )
-                    row = r.scalar_one_or_none()
-                    if row:
-                        return row.api_key_enc
+                    from app.services.cache import get_ai_provider_key
+                    key = await get_ai_provider_key(str(org_id), provider)
+                    if key:
+                        return key
                 if provider == "anthropic" and settings.anthropic_api_key:
                     return settings.anthropic_api_key
                 raise ValueError(f"No API key for provider '{provider}'")
@@ -350,10 +345,11 @@ async def _run_experiment(experiment_id: str, project_id: str):
             scores_a, scores_b = [], []
 
             for idx, item in enumerate(items):
-                # Determine input text
-                input_text = item.expected_output or (
-                    json.dumps(item.input) if item.input else ""
-                ) or (str(item.session_id) if item.session_id else f"Item {idx+1}")
+                # Determine input text (use actual input, not expected output)
+                input_text = (
+                    json.dumps(item.input) if item.input
+                    else (str(item.session_id) if item.session_id else f"Item {idx+1}")
+                )
 
                 for variant, key, config in [("a", key_a, exp.variant_a), ("b", key_b, exp.variant_b)]:
                     run = ExperimentRun(
