@@ -25,6 +25,9 @@ DEMOS = [
     ("06_loop_and_errors.py",   "Error Scenarios & Loop Detection"),
     ("07_multi_model_router.py","Multi-Model Routing (Cost & Quality)"),
     ("08_behavioral_patterns.py","Behavioral Pattern Detection (Monitor Flags, Quality Scoring)"),
+    ("09_healthcare_agent.py",  "Healthcare Clinical AI (Triage, Medication Safety, Notes)"),
+    ("10_swe_agent.py",         "SWE Agent (Code Review, Debugging, Implementation)"),
+    ("11_ai_devops_agent.py",   "AI DevOps Agent (Deployments, Incidents, Cost Optimization)"),
 ]
 
 BANNER = "=" * 60

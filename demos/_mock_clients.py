@@ -98,6 +98,61 @@ OPENAI_RESPONSES = {
         "Task complete. Invoice #INV-2026-0441 processed: $3,820.00 to TechVendor Inc, mapped to GL account 5200-Software, approved within your $5k threshold. Payment queued for net-30 terms on June 15. No action required.",
         "Analysis done. Your agent's top cost driver is the summarization span (avg 2,100 tokens/call). Switching to a cached prompt template could reduce this by ~60%, saving ~$0.009/session or ~$270/month at current volume.",
     ],
+
+    # ── Healthcare agent responses ────────────────────────────────────────────────
+    "healthcare_triage": [
+        "Patient presents with chest pain (7/10), radiating to left arm, onset 45 minutes ago. Vitals: BP 158/94, HR 102, O2 sat 96%. Triage level: ESI-2 (Emergency). Recommended: immediate 12-lead ECG, troponin I panel, aspirin 325mg PO if not contraindicated. Alert cardiology on-call.",
+        "Patient reports sudden severe headache (9/10), onset 2 hours ago, described as 'worst headache of my life'. Neuro exam: no focal deficits, GCS 15, neck stiffness present. Triage: ESI-2. Immediate non-contrast CT head ordered. Neurosurgery and neurology on-call alerted.",
+        "5-year-old male, 39.4°C fever x 3 days, non-blanching petechial rash spreading rapidly. Triage: ESI-1. Suspected meningococcemia — immediate isolation, IV access, blood cultures x2, LP pending CT, ceftriaxone 100mg/kg IV. PICU bed requested.",
+    ],
+    "healthcare_rx": [
+        "Medication interaction check: Warfarin + Amoxicillin — MODERATE interaction. Amoxicillin may enhance anticoagulant effect of warfarin via gut flora disruption. Recommendation: increase INR monitoring (every 3-4 days during and 1 week post-course). No dose adjustment required if monitored. Patient education: watch for unusual bruising or bleeding.",
+        "Formulary check: Ozempic (semaglutide 0.5mg weekly) — Tier 3, prior authorization required. PA criteria met: HbA1c 9.2% (documented), metformin failure x 6 months. PA submitted to UnitedHealth. Estimated approval: 2-3 business days. Copay: $75/month with Novo Nordisk savings card.",
+        "Dosing alert: Metformin 1000mg BID — patient eGFR is 41 mL/min/1.73m² (CKD Stage 3b). Metformin is CONTRAINDICATED below eGFR 30; current dose requires caution and monitoring. Recommendation: reduce to 500mg daily, recheck eGFR in 3 months. Notify prescriber Dr. Patel.",
+    ],
+    "healthcare_notes": [
+        "SOAP Note — John D., 45M:\nS: 3-day productive cough, fever 101.8°F, fatigue, mild dyspnea. No sick contacts. PMH: HTN, DM2. Meds: Lisinopril 10mg, Metformin 500mg BID.\nO: Vitals stable. Lungs: diminished breath sounds RLL, dullness to percussion. SpO2 98% RA. WBC 13.2 (elevated).\nA: Community-acquired pneumonia, right lower lobe. Severity: PSI Class II.\nP: Azithromycin 500mg x5d, supportive care, encourage fluids, return precautions. Follow-up 5 days or sooner if worsening.",
+        "Discharge Summary — Mary K., 67F (Admitted: cardiac catheterization):\nProcedure: Left heart catheterization + PCI. Findings: 90% LAD stenosis (proximal). Intervention: Drug-eluting stent placed (3.5×28mm). Result: TIMI 3 flow restored, residual stenosis 0%. Complications: none. Discharge meds: Aspirin 81mg lifelong, Clopidogrel 75mg x12 months, Atorvastatin 80mg, Metoprolol 25mg BID. Follow-up: Cardiology 2 weeks.",
+    ],
+    "healthcare_scheduling": [
+        "Appointment confirmed: Dr. Sarah Chen (Cardiology) — May 22, 2:15 PM, Tower 3 Clinic. Pre-visit requirements sent to patient portal: 12-lead ECG (bring report), lipid panel (last 6 months), current medication list. Reminders set: 24h and 2h before. Patient insurance pre-authorization complete (Auth #: UA-2026-88291).",
+        "Referral processed: Primary care → Orthopedic Surgery (Dr. Marcus Webb). Indication: right knee MRI showing medial meniscus tear, Grade III. Insurance pre-auth submitted (Blue Cross, Policy #BCX-44821). Next available: June 3 at 10:00 AM. Pre-op bloodwork ordered. Physical therapy hold pending surgical decision.",
+    ],
+
+    # ── SWE agent responses ───────────────────────────────────────────────────────
+    "swe_review": [
+        "PR #4421 reviewed — 847 lines changed across 12 files.\n\n🔴 Blocking: SQL injection vulnerability at user_service.py:89 — user_id param passed directly into raw query without sanitization. Must fix before merge.\n🟡 High: N+1 query pattern in UserService.get_orders() causes ~50 DB calls per request. Add select_related('items', 'shipping').\n🟢 Approve after fixes: Auth middleware refactor is clean, tests cover 83% of changed lines, migration is reversible.",
+        "PR #4438 reviewed — dependency upgrade (React 18 → 19, Next.js 14 → 15).\n\n✅ All 847 tests passing. Bundle size: -12KB (good). Breaking change found: useFormState hook renamed to useActionState — updated 4 usages. Hydration mismatch in SessionList resolved by adding 'use client' boundary. Recommend: approve after smoke test on staging. Performance: LCP improved 180ms.",
+    ],
+    "swe_debug": [
+        "Root cause identified: Race condition in job queue processor. Two workers acquire the same job_id simultaneously before row lock is obtained — both update status to 'processing'. Fix: Use SELECT ... FOR UPDATE SKIP LOCKED in the fetch query (PostgreSQL). Estimated fix: 45 minutes. Add idempotency check as defense-in-depth.",
+        "Memory leak traced to EventEmitter in WebSocket handler (ws-handler.ts:127). Listeners attached on each connection but never removed on 'close' event. After 24h, heap snapshot shows 47,000 dangling references. Fix: call emitter.removeAllListeners() in the close handler, or use once() for single-fire listeners. Heap should normalize within one restart cycle.",
+        "Flaky test root cause: TestPaymentService.test_charge_timeout() uses time.sleep(0.1) to simulate timeout, but CI runners are slower — actual timeout fires in 0.08s causing assertion mismatch. Fix: mock the timer with freezegun instead of real sleep. 7 other tests in this file have the same pattern.",
+    ],
+    "swe_implement": [
+        "Implementation complete: Rate limiting middleware using token bucket algorithm. Config: 100 req/min per user, 1,000 req/min per org. Redis-backed with atomic INCR+EXPIRE for distributed correctness. Bypass header for internal services (X-Internal-Token). 429 response includes Retry-After header. Tests: 14 unit + 3 integration, coverage 94%. Ready for review.",
+        "Feature complete: Webhook retry with exponential backoff. Retries on 5xx and network timeouts (not 4xx). Schedule: immediate → 30s → 5m → 1h → 24h (max 5 attempts). Permanently failed events moved to dead-letter queue (Redis Stream). All events signed HMAC-SHA256. Webhook event log added to admin panel. Migration: non-breaking, feature-flagged.",
+    ],
+    "swe_test": [
+        "Test suite generated: 31 unit tests for payment service refactor. Covers: successful charge, declined card (Stripe code 4000000000000002), insufficient funds, network timeout (requests.exceptions.Timeout), idempotency key collision, partial capture, full/partial refund, webhook signature valid/invalid, SCA 3DS flow. All tests green. Coverage: 96.4%.",
+    ],
+
+    # ── DevOps agent responses ────────────────────────────────────────────────────
+    "devops_deploy": [
+        "Deployment v2.4.1 → production complete. Pipeline: build 1m23s ✓ → unit tests 2m41s ✓ → integration tests 4m12s ✓ → SAST scan 1m55s ✓ → staging 2m08s ✓ → canary 5% (3min hold, error rate 0.01%) ✓ → full rollout ✓. Total: 18m42s. Zero downtime. p99 latency stable at 142ms. Rollback available: v2.4.0 (est. 45s).",
+        "Blue-green deployment complete. Traffic shifted: v1.8.2 (blue) → v2.0.0 (green). Health checks: /health 200 OK, /ready 200 OK. Error rate post-shift: 0.02% (threshold 0.1%). p95 latency: 138ms (was 144ms). Old blue environment on standby 15 min before teardown. Slack notification sent to #deployments.",
+    ],
+    "devops_incident": [
+        "INCIDENT-P1-0441: API gateway /api/v2/payments returning 5xx — error rate 34%, impact ~2,200 users. Root cause: TLS certificate expired on payment-processor-internal (expired 14 min ago). Action taken: cert renewed via Vault PKI (1m 20s), rolling restart 3/3 payment pods healthy. Error rate normalized to 0.01%. Incident duration: 22 minutes. Post-mortem scheduled Friday.",
+        "Alert resolved: prod-worker-07 heap memory 94% (threshold 85%). Root cause: log aggregation buffer not flushing at high throughput — buffer filling faster than flush interval. Fix deployed: flush frequency 10s→2s, buffer size cap 512MB→128MB. Heap normalized to 58% within 4 minutes. Alert rule updated. No data loss — buffer writes to disk on overflow.",
+    ],
+    "devops_infra": [
+        "Infrastructure cost report — May 2026: $47,200 (↑12% MoM). Top opportunities: (1) RDS Multi-AZ $8,400/mo → Reserved Instance 1yr saves 35% ($2,940 saved); (2) NAT Gateway transfer $6,200 → VPC endpoints for S3/DynamoDB saves ~$3,800; (3) Over-provisioned k8s nodes $4,100 → right-size m5.xlarge→m5.large saves $2,100. Total projected savings: $8,840/mo.",
+        "Auto-scaling complete: API cluster 12→20 pods (trigger: p95 latency 812ms, threshold 500ms; concurrent users 3,247). Scale-up time: 47 seconds. Post-scale metrics: p95 latency 178ms, error rate 0.01%, concurrent users 3,241. Scale-down eligible in 8 minutes if below 1,500 concurrent. HPA min/max updated: 8/24 pods.",
+    ],
+    "devops_ci": [
+        "CI pipeline optimization report: Current avg build time 8m42s (↑38% over 30 days). Bottleneck analysis: test parallelism at 4 workers (utilization 94%). Recommendations: (1) Scale to 8 workers → test time ~4m10s; (2) Cache node_modules on S3 → saves 1m18s/build; (3) Nx affected builds → skip unchanged services (avg 40% skipped). Projected total: 3m45s (57% reduction).",
+    ],
 }
 
 def _mock_openai_response(model: str, messages: list, category: str = "generic") -> MockOpenAIResponse:
@@ -163,6 +218,17 @@ ANTHROPIC_RESPONSES = {
     "generic": [
         "I've completed a thorough analysis of the request. Here is my comprehensive response with detailed reasoning and specific recommendations based on the available information.",
         "After careful consideration, I recommend the following approach. This solution addresses the core requirements while remaining maintainable and scalable for future needs.",
+    ],
+    "healthcare_notes": [
+        "**Clinical Decision Support — Sepsis Screening:**\n\nqSOFA score: 2/3 (altered mentation ✓, RR ≥22 ✓, SBP ≤100 ✗). High-risk. Recommend immediate:\n1. Blood cultures x2 (before antibiotics)\n2. Lactate level (>2 mmol/L = septic shock threshold)\n3. Broad-spectrum antibiotics within 1 hour (Pip-Tazo 4.5g IV)\n4. 30mL/kg crystalloid bolus\n5. Transfer to ICU, notify intensivist Dr. Reyes.",
+        "**Discharge Medication Reconciliation:**\n\nPre-admission meds reviewed against current orders. Changes made:\n- Metoprolol: held during admission for bradycardia → resume at 50% dose (25mg daily, was 50mg BID)\n- Lisinopril: held for acute kidney injury → resume when Cr <1.4 (currently 1.6)\n- Aspirin 81mg: continued\n- New: Furosemide 20mg daily x30 days for fluid overload\nPatient counseled on all changes. Follow-up labs in 1 week.",
+    ],
+    "swe_review": [
+        "**Code Review: PR #4421 — Auth Service Refactor**\n\nI've analyzed the diff carefully. Here's my assessment:\n\n**Critical (must fix):** The JWT validation in `auth_middleware.py:156` doesn't verify the `aud` claim — any token issued by your IDP could be accepted, including tokens meant for other services. Add `options={'verify_aud': True}` to the decode call.\n\n**High:** The refresh token rotation logic on line 203 has a time-of-check/time-of-use race — two concurrent requests could both consume the same refresh token before invalidation propagates. Use Redis SET NX for atomic single-use enforcement.\n\n**Approved once critical is fixed.** The session storage abstraction is excellent — clean interface, easy to swap Redis for another backend.",
+        "**Implementation Plan: Distributed Rate Limiter**\n\nRecommend the sliding window log algorithm over fixed window for accuracy at boundaries. Here's the design:\n\n1. Redis sorted set per user: `ratelimit:{user_id}` — members are request timestamps\n2. On each request: ZREMRANGEBYSCORE (evict old), ZCARD (count), ZADD (record)\n3. All three ops in a Lua script for atomicity — no race condition\n4. TTL auto-expires keys after window duration\n\nThis handles burst patterns correctly. Implementation: ~80 lines of Go. I'll scaffold it now.",
+    ],
+    "devops_incident": [
+        "**Incident Analysis — Cascading Database Failure**\n\nTimeline reconstruction:\n- 14:32 UTC: Primary RDS instance CPU spike to 99% (long-running analytics query from reporting tool)\n- 14:34 UTC: Connection pool exhausted — application threads blocking\n- 14:35 UTC: Health checks timing out → ELB marking instances unhealthy → traffic to remaining instances\n- 14:37 UTC: Overload cascades to remaining instances → full outage\n\n**Root cause:** No query timeout configured on analytics DB user. One unoptimized report query held 340 connections for 6+ minutes.\n\n**Immediate fixes applied:** Killed blocking query, set statement_timeout=30s for reporting role, increased connection pool from 100→300.\n\n**Prevention:** Read replica for analytics, query budget enforcement, slow query alerting at 5s threshold.",
     ],
 }
 

@@ -16,7 +16,7 @@ class AgentLoopConfig:
     project_id: str = field(default_factory=lambda: os.environ.get("DOTTLE_PROJECT_ID", ""))
     flush_interval_ms: int = 2000       # background thread flush interval
     max_batch_size: int = 50
-    timeout_s: int = 5
+    timeout_s: int = 30
     disabled: bool = False              # set True in tests to suppress all HTTP calls
     debug: bool = False                 # log span events to stdout
     redact_pii: bool = False            # scrub emails, phones, card numbers from prompts
