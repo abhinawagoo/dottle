@@ -7,13 +7,11 @@ import json
 import uuid
 from datetime import datetime, timezone
 
-import asyncio
-
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db, AsyncSessionLocal
+from app.database import get_db
 from app.models.project import Project
 from app.models.session import AgentSession
 from app.models.span import Span
@@ -23,8 +21,7 @@ from app.services.cost import compute_cost
 from app.services.loop_detector import analyze_spans
 from app.services.issue_detector import detect_all, SessionSnapshot
 from app.models.issue import SessionIssue
-from app.services.auto_quality import score_session
-from app.services.cache import cache_delete_pattern
+from app.arq_pool import enqueue
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -145,46 +142,29 @@ async def end_session(
 
     await db.flush()
 
-    # Fire-and-forget: auto quality scoring in a separate DB session
-    # so it never blocks or fails the ingest response.
-    asyncio.ensure_future(_bg_score_session(
-        session_id=session.id,
-        project_id=session.project_id,
-        org_id=project.org_id,
+    # Enqueue background work to the ARQ worker — web process never executes these.
+    sid = str(session.id)
+    pid = str(session.project_id)
+    oid = str(project.org_id)
+
+    await enqueue(
+        "task_score_session",
+        session_id=sid,
+        project_id=pid,
+        org_id=oid,
         agent_name=session.agent_name,
         status=session.status,
         duration_ms=session.duration_ms,
         total_tokens=session.total_tokens,
-        iteration_count=session.iteration_count,
-        loop_detected=session.loop_detected,
+        iteration_count=session.iteration_count or 0,
+        loop_detected=bool(session.loop_detected),
         error_message=session.error_message,
         spans=span_dicts,
-    ))
-
-    # Fire-and-forget: run all active LLM evaluator configs for this project.
-    asyncio.ensure_future(_bg_trigger_evals(
-        session_id=str(session.id),
-        project_id=str(session.project_id),
-    ))
-
-    # Invalidate sessions-list and metrics cache for this project so
-    # the dashboard reflects the new session immediately.
-    asyncio.ensure_future(cache_delete_pattern(f"sessions_list:{session.project_id}:*"))
-    asyncio.ensure_future(cache_delete_pattern(f"metrics:{session.project_id}:*"))
+    )
+    await enqueue("task_trigger_evals", session_id=sid, project_id=pid)
+    await enqueue("task_invalidate_caches", project_id=pid)
 
     return {"ok": True, "issues_detected": len(issues)}
-
-
-async def _bg_score_session(**kwargs) -> None:
-    """Runs auto quality scoring in its own AsyncSession so failures are isolated."""
-    async with AsyncSessionLocal() as bg_db:
-        await score_session(db=bg_db, **kwargs)
-
-
-async def _bg_trigger_evals(session_id: str, project_id: str) -> None:
-    """Runs all active LLM evaluator configs for a completed session."""
-    from app.routers.evals import _run_evals_for_session
-    await _run_evals_for_session(session_id=session_id, project_id=project_id)
 
 
 @router.post("/spans", status_code=status.HTTP_202_ACCEPTED)

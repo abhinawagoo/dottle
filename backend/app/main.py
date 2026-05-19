@@ -6,7 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.routers import ingest, sessions, metrics, alerts, projects, auth, orgs, issues, code_fixes, slack_oauth, onboarding, scores, prompts, evals, datasets, playground, ai_providers, experiments, monitors
-from app.workers.alert_worker import start_alert_worker, stop_alert_worker
 
 settings = get_settings()
 logger = structlog.get_logger()
@@ -15,9 +14,12 @@ logger = structlog.get_logger()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Dottle backend", version=settings.app_version)
-    start_alert_worker(interval_seconds=settings.alert_poll_interval_seconds)
+    # Warm up the ARQ pool so the first enqueue is fast
+    from app.arq_pool import get_arq_pool
+    await get_arq_pool()
     yield
-    stop_alert_worker()
+    from app.arq_pool import close_arq_pool
+    await close_arq_pool()
     logger.info("Dottle backend stopped")
 
 

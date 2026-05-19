@@ -17,7 +17,7 @@ import uuid
 from datetime import datetime, timezone
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -215,11 +215,12 @@ class CreateFixJobInput(BaseModel):
 async def create_fix_job(
     issue_type: str,
     body: CreateFixJobInput,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a CodeFixJob and kick off the coding agent in the background."""
+    """Create a CodeFixJob and kick off the coding agent via ARQ worker."""
+    from app.arq_pool import enqueue
+
     await _get_project(body.project_id, db)
 
     # Check GitHub is configured
@@ -241,15 +242,7 @@ async def create_fix_job(
     await db.commit()
     await db.refresh(job)
 
-    job_id = str(job.id)
-
-    # Run agent in background — separate DB session to avoid state conflicts
-    async def _run():
-        from app.database import AsyncSessionLocal
-        async with AsyncSessionLocal() as bg_db:
-            await run_coding_agent(job_id, bg_db)
-
-    background_tasks.add_task(_run)
+    await enqueue("task_run_code_fix", job_id=str(job.id))
     return job
 
 

@@ -81,12 +81,16 @@ async def cache_delete(key: str) -> None:
 
 
 async def cache_delete_pattern(pattern: str) -> None:
-    """Delete all keys matching a glob *pattern* (e.g. 'sessions_list:abc:*')."""
+    """Delete all keys matching a glob *pattern* using SCAN (safe at any scale)."""
     try:
         r = await get_redis()
-        keys = await r.keys(pattern)
-        if keys:
-            await r.delete(*keys)
+        cursor = 0
+        while True:
+            cursor, keys = await r.scan(cursor=cursor, match=pattern, count=200)
+            if keys:
+                await r.delete(*keys)
+            if cursor == 0:
+                break
     except Exception as exc:
         logger.debug("cache_delete_pattern error pattern=%s err=%s", pattern, exc)
 

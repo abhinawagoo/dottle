@@ -15,7 +15,7 @@ import structlog
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -171,10 +171,11 @@ async def get_experiment(
 @router.post("/{experiment_id}/run")
 async def start_experiment_run(
     experiment_id: str,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
+    from app.arq_pool import enqueue
+
     exp = await db.get(Experiment, uuid.UUID(experiment_id))
     if not exp:
         raise HTTPException(404, "Experiment not found")
@@ -186,7 +187,7 @@ async def start_experiment_run(
     exp.status = "running"
     await db.commit()
 
-    background_tasks.add_task(_run_experiment, str(exp.id), str(exp.project_id))
+    await enqueue("task_run_experiment", experiment_id=str(exp.id), project_id=str(exp.project_id))
     return {"ok": True, "status": "running"}
 
 

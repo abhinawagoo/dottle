@@ -17,7 +17,7 @@ import structlog
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -292,11 +292,11 @@ async def delete_eval_config(
 async def run_eval_on_session(
     config_id: str,
     session_id: str,
-    background_tasks: BackgroundTasks,
     _: User = Depends(get_current_user),
 ):
     """Manually trigger an eval on a specific session."""
-    background_tasks.add_task(_run_eval_for_session, config_id, session_id)
+    from app.arq_pool import enqueue
+    await enqueue("task_run_eval_for_session", config_id=config_id, session_id=session_id)
     return {"queued": True}
 
 
@@ -322,9 +322,8 @@ async def list_eval_results(
 
 async def _run_evals_for_session(session_id: str, project_id: str) -> None:
     """
-    Fire-and-forget coroutine — runs all active eval configs for a project
-    against the given session. Each eval runs in its own isolated async context.
-    Called from ingest.py via asyncio.ensure_future.
+    Run all active eval configs for a project against the given session.
+    Called by the ARQ worker task task_trigger_evals.
     """
     from app.services.cache import cache_get, cache_set
     import json as _json
@@ -359,21 +358,3 @@ async def _run_evals_for_session(session_id: str, project_id: str) -> None:
                            cfg["id"], session_id, exc)
 
 
-async def trigger_evals_for_session(session_id: str, project_id: str, background_tasks: BackgroundTasks):
-    """
-    BackgroundTasks-based trigger (used by manual API routes).
-    For automatic triggering from ingest, use _run_evals_for_session directly.
-    """
-    async with AsyncSessionLocal() as db:
-        configs_r = await db.execute(
-            select(EvalConfig).where(
-                EvalConfig.project_id == uuid.UUID(project_id),
-                EvalConfig.active == True,
-            )
-        )
-        configs = configs_r.scalars().all()
-
-    for config in configs:
-        if config.run_on == "sample" and random.random() > config.sample_rate:
-            continue
-        background_tasks.add_task(_run_eval_for_session, str(config.id), session_id)

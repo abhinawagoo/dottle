@@ -21,7 +21,7 @@ import structlog
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -351,10 +351,11 @@ async def delete_item(
 async def create_run(
     dataset_id: str,
     body: DatasetRunCreate,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    from app.arq_pool import enqueue
+
     d_r = await db.execute(select(Dataset).where(Dataset.id == uuid.UUID(dataset_id)))
     dataset = d_r.scalar_one_or_none()
     if not dataset:
@@ -374,7 +375,7 @@ async def create_run(
     await db.commit()
     await db.refresh(run)
 
-    background_tasks.add_task(_execute_dataset_run, str(run.id), body.eval_criteria)
+    await enqueue("task_execute_dataset_run", run_id=str(run.id), eval_criteria=body.eval_criteria)
     return _run_out(run)
 
 
